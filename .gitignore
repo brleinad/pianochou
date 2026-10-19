@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+
+# SwiftPM
+.build/
+.swiftpm/
+Package.resolved
+
+# User's own scores — never commit copyrighted music
+scores/
+*.mxl
+*.mid
+*.midi
