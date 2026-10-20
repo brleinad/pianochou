@@ -5,6 +5,8 @@ import PianoCore
 struct HomeView: View {
     /// Launch with `-listen-test` to open the listen screen directly (for simulator checks).
     @State private var showListenTest = ProcessInfo.processInfo.arguments.contains("-listen-test")
+    /// Launch with `-staff-gallery` to open the staff gallery directly.
+    @State private var showStaffGallery = ProcessInfo.processInfo.arguments.contains("-staff-gallery")
 
     var body: some View {
         NavigationStack {
@@ -23,6 +25,11 @@ struct HomeView: View {
                     .foregroundStyle(Theme.paper)
                     .frame(maxWidth: 320, minHeight: 58)
                     .background(Capsule().fill(Theme.ink))
+                NavigationLink("Staff gallery") { StaffGalleryView() }
+                    .font(Theme.text(18))
+                    .foregroundStyle(Theme.ink)
+                    .frame(maxWidth: 320, minHeight: 58)
+                    .overlay(Capsule().stroke(Theme.hairline))
                 Text("v\(PianoCore.version)")
                     .font(Theme.text(15))
                     .foregroundStyle(Theme.muted)
@@ -31,6 +38,7 @@ struct HomeView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Theme.paper)
             .navigationDestination(isPresented: $showListenTest) { ListenTestView() }
+            .navigationDestination(isPresented: $showStaffGallery) { StaffGalleryView() }
         }
     }
 }

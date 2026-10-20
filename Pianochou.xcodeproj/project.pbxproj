@@ -21,6 +21,12 @@
 			path = Pianochou;
 			sourceTree = "<group>";
 		};
+		A10000000000000000000031 /* Fixtures */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			name = Fixtures;
+			path = PianoCore/Tests/Fixtures;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -39,6 +45,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000030 /* Pianochou */,
+				A10000000000000000000031 /* Fixtures */,
 				A10000000000000000000052 /* Config */,
 				A10000000000000000000051 /* Products */,
 			);
@@ -77,6 +84,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				A10000000000000000000030 /* Pianochou */,
+				A10000000000000000000031 /* Fixtures */,
 			);
 			name = Pianochou;
 			packageProductDependencies = (
@@ -207,11 +215,11 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Config/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Pianochou;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Pianochou listens to your piano so it can follow along and tell you which notes sounded. Audio stays on your iPhone.";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Pianochou listens to your piano so it can follow along and tell you which notes sounded. Audio stays on your iPhone.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIFileSharingEnabled = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIFileSharingEnabled = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -239,11 +247,11 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Config/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Pianochou;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Pianochou listens to your piano so it can follow along and tell you which notes sounded. Audio stays on your iPhone.";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Pianochou listens to your piano so it can follow along and tell you which notes sounded. Audio stays on your iPhone.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIFileSharingEnabled = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIFileSharingEnabled = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (

@@ -10,6 +10,15 @@ enum Theme {
     static let now = dynamic(light: 0x1F4FE0, dark: 0x8AA6FF)
     static let fix = dynamic(light: 0xC2410C, dark: 0xFB923C)
 
+    // Staff colors, from the playing-screen mockup.
+    static let staffLine = dynamic(light: 0x121212, dark: 0x5E5E5A)
+    /// Notes already played.
+    static let played = dynamic(light: 0xBDBDB8, dark: 0x4A4A47)
+    /// Finger numbers and counts already played.
+    static let playedText = dynamic(light: 0x73736F, dark: 0x8A8A85)
+    /// The current-beat band behind the staff.
+    static let band = dynamic(light: 0x1F4FE0, dark: 0x8AA6FF, lightAlpha: 0.08, darkAlpha: 0.14)
+
     /// Hanken Grotesk at a given size; it is a variable font, so `.weight()` works on it.
     static func text(_ size: CGFloat, relativeTo style: Font.TextStyle = .body) -> Font {
         .custom("Hanken Grotesk", size: size, relativeTo: style)
@@ -20,9 +29,11 @@ enum Theme {
         .custom("Bravura", fixedSize: size)
     }
 
-    private static func dynamic(light: UInt32, dark: UInt32) -> Color {
+    private static func dynamic(light: UInt32, dark: UInt32, lightAlpha: CGFloat = 1, darkAlpha: CGFloat = 1) -> Color {
         Color(UIColor { traits in
-            UIColor(rgb: traits.userInterfaceStyle == .dark ? dark : light)
+            traits.userInterfaceStyle == .dark
+                ? UIColor(rgb: dark).withAlphaComponent(darkAlpha)
+                : UIColor(rgb: light).withAlphaComponent(lightAlpha)
         })
     }
 }
