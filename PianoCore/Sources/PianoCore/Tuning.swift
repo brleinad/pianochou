@@ -87,6 +87,32 @@ public enum Tuning {
     /// Calibrated against synthetic tones in NoteListenerTests.
     public static let onsetTimeCorrection: Double = 0.04
 
+    // MARK: Staff drawing (M3). Lengths in staff spaces (the gap between two staff lines).
+
+    /// Horizontal room after a quarter note; other values scale by (duration in quarters)^exponent,
+    /// so a half note gets ~1.7× a quarter's room rather than 2×.
+    public static let quarterNoteSpace: Double = 3.6
+    public static let noteSpaceExponent: Double = 0.75
+    /// Never less room than this after a note (fast 16ths).
+    public static let minimumNoteSpace: Double = 2.0
+
+    /// Normal stem length, measured from the notehead centre.
+    public static let stemLength: Double = 3.5
+    /// Shortest stem allowed under a beam.
+    public static let minimumBeamedStem: Double = 2.75
+    /// Steepest beam, as total rise across the group.
+    public static let maximumBeamRise: Double = 1.0
+    public static let beamThickness: Double = 0.5
+    /// Distance between stacked beams (8th to 16th), edge to edge.
+    public static let beamGap: Double = 0.25
+
+    /// Empty space between the two staves of a grand staff, beyond what notes and stems need.
+    public static let staffGapMin: Double = 6
+
+    /// Finger numbers and beat counts, as font sizes.
+    public static let fingerTextSize: Double = 1.4
+    public static let countTextSize: Double = 1.3
+
     // MARK: Grading (M4)
 
     // MARK: Analyzer weights (M5)
