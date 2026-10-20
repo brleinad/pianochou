@@ -68,7 +68,7 @@ import Testing
         let events = listen(samples, expecting: [64])
         #expect(events.compactMap(\.expectedMidi).count == 4, "\(events)")
         for (event, time) in zip(events, times) {
-            #expect(abs(event.onsetTime - time) < 0.03)
+            #expect(abs(event.onsetTime - time) < 0.03, "\(event.onsetTime) vs \(time)")
         }
     }
 
@@ -78,6 +78,22 @@ import Testing
         let samples = synth.render(times.map { .init(midi: 67, time: $0, duration: 2) }, length: 2.5)
         let events = listen(samples, expecting: [67])
         #expect(events.compactMap(\.expectedMidi).count == 3, "\(events)")
+    }
+
+    @Test func noiseWhileANoteRingsIsNotAnotherStrike() {
+        // Seen on a real piano: pedal and damper thumps make a ringing note's salience dip and recover,
+        // which used to count as fresh onsets (3 presses heard as 10).
+        var samples = synth.render([.init(midi: 60, time: 0.5, duration: 3)], length: 3.5)
+        var rng = SplitMix(seed: 7)
+        for thump in [1.2, 2.0, 2.6] {
+            let start = Int(thump * 48_000)
+            for i in start..<start + 2_400 {
+                let fade = 1 - Double(i - start) / 2_400
+                samples[i] += Float(0.04 * fade * rng.nextSigned())
+            }
+        }
+        let events = listen(samples, expecting: [60])
+        #expect(events.compactMap(\.expectedMidi) == [60], "\(events)")
     }
 
     @Test func melodyFollowsTheExpectedNote() {

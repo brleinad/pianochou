@@ -10,15 +10,24 @@ Code: `PianoCore/Sources/PianoCore/Listening/`. Numbers: `Tuning.swift` › List
 - Only partials where a semitone spans ≥ 2.5 bins are used, so low notes are judged on higher harmonics.
 - **Onset** of an expected pitch = salience present (≥ 10 dB) and jumped ≥ 6 dB within 60 ms.
   The pitch re-arms once its salience levels off, so one strike isn't counted twice.
+  The raw level of its partials must also jump ≥ 4 dB: on a real piano, salience dips and recovers
+  while a note rings (beating, damper and pedal noise), and those recoveries looked like new strikes.
+  First real recording: real strikes rose 25–36 dB, false candidates ≤ 1.6 dB.
 - **Octave guards:** the lower note needs an odd partial; the upper note is rejected if the odd partials
   of the octave below (1.5·f0, 2.5·f0) stand out — unless the chord explains them.
-- **Unexpected note** = broadband strike (spectral flux + energy rise) with no expected onset within 80 ms,
-  and a pitch guess exists. Unpitched noises are ignored.
+- **Unexpected note** = broadband strike (spectral flux + energy rise) with no expected onset from 80 ms before
+  to 160 ms after it (a key click lands ~50 ms before the hammer), and a pitch guess exists. Unpitched noises are ignored.
 
 ## Measured on synthetic tones (tests)
 - Reliable from A1 (55 Hz) to A7, soft or loud, with room noise at −40 dBFS.
 - Algorithm latency ≈ 40 ms after the strike; strike time estimated within ±15 ms.
 - Repeated notes every 300 ms, with or without pedal; 3-note chords; wrong notes; octave errors.
+
+## Debugging with real recordings
+Listen test → Record saves `Documents/recordings/listen-*.wav` + `.json` on the phone. Copy them off with
+`xcrun devicectl device copy from --device <id> --domain-type appDataContainer --domain-identifier com.brleinad.pianochou --source Documents/recordings --destination <dir>`
+and replay with `swift run -c release --package-path PianoCore listen-replay <file>.wav [--trace 60 --from 2 --to 4]`.
+Replay matches the phone's detections exactly.
 
 ## Known limits
 - **Lowest keys (A0–F#1)** are not detected; with a piano 30 cents flat the limit rises to ~C2.

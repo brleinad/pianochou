@@ -53,12 +53,15 @@ public final class NoteListener {
         /// Broadband strike measures for the latest frame.
         public var flux: Float
         public var energyRise: Float
+        /// Raw level of this pitch's partials now minus its minimum over the onset lookback.
+        public var levelRise: Float
     }
 
     public func diagnostics(for midi: Int) -> Diagnostics {
         let now = salience(of: midi)
         return Diagnostics(salience: now, rise: now - minimumRecent(midi), sounding: isSounding(midi),
-                           armed: !disarmed.contains(midi), flux: lastFlux, energyRise: lastEnergyRise)
+                           armed: !disarmed.contains(midi), flux: lastFlux, energyRise: lastEnergyRise,
+                           levelRise: levelRise(midi))
     }
 
     private var lastFlux: Float = 0
@@ -85,6 +88,9 @@ public final class NoteListener {
 
     private let historyLength: Int
     private var history: [[Float]]
+    /// Raw partial level per pitch (dB), and its rise versus the lookback before it; same ring as `history`.
+    private var levelHistory: [[Float]]
+    private var levelRiseHistory: [[Float]]
     private var historyIndex = 0
     private let lookbackFrames: Int
 
@@ -119,9 +125,11 @@ public final class NoteListener {
 
         let hopSeconds = Double(Tuning.hopSize) / sampleRate
         lookbackFrames = max(1, Int((Tuning.onsetLookback / hopSeconds).rounded()))
-        historyLength = max(lookbackFrames + 1, Int(((Tuning.onsetLookback + Tuning.unexpectedWindow) / hopSeconds).rounded()) + 2)
+        historyLength = max(lookbackFrames + 2, Int(((Tuning.onsetLookback + Tuning.unexpectedLateWindow) / hopSeconds).rounded()) + 2)
         let pitchCount = Self.highestMidi - Self.lowestMidi + 1
         history = Array(repeating: Array(repeating: 0, count: pitchCount), count: historyLength)
+        levelHistory = Array(repeating: Array(repeating: -120, count: pitchCount), count: historyLength)
+        levelRiseHistory = Array(repeating: Array(repeating: 0, count: pitchCount), count: historyLength)
 
         let semitone = pow(2, 1.0 / 12)
         let topHz = min(Tuning.maxPartialHz, sampleRate / 2 / semitone - analyzer.binHz)
@@ -190,7 +198,14 @@ public final class NoteListener {
         // Salience for every pitch, so we can both check expected notes and guess unexpected ones.
         let pitchCount = Self.highestMidi - Self.lowestMidi + 1
         let slot = historyIndex
-        for i in 0..<pitchCount { history[slot][i] = harmonicSalience(i) }
+        for i in 0..<pitchCount {
+            history[slot][i] = harmonicSalience(i)
+            let level = partialLevel(i)
+            var lowest = Float.infinity
+            for back in 1...lookbackFrames { lowest = min(lowest, levelHistory[(slot + historyLength - back) % historyLength][i]) }
+            levelHistory[slot][i] = level
+            levelRiseHistory[slot][i] = level - lowest
+        }
         historyIndex = (historyIndex + 1) % historyLength
 
         guard time >= Tuning.listenWarmup else { return [] }
@@ -205,6 +220,8 @@ public final class NoteListener {
                 disarmed.remove(midi)
             }
             guard isPresent(midi, salience: now), rise >= Tuning.onsetRiseDb else { continue }
+            // Salience recovering from a dip is not a strike; the partials themselves must get louder.
+            guard levelRise(midi) >= Tuning.onsetLevelRiseDb else { continue }
             if let last = lastOnset[midi], time - last < Tuning.onsetRefractory { continue }
             lastOnset[midi] = time
             disarmed.insert(midi)
@@ -224,10 +241,12 @@ public final class NoteListener {
         } else {
             strikeArmed = true
         }
-        recentExpected.removeAll { time - $0 > 2 * Tuning.unexpectedWindow + Tuning.onsetLookback }
-        while let strike = pendingStrikes.first, time - strike.detectedAt >= Tuning.unexpectedWindow {
+        recentExpected.removeAll { time - $0 > Tuning.unexpectedWindow + Tuning.unexpectedLateWindow + Tuning.onsetLookback }
+        while let strike = pendingStrikes.first, time - strike.detectedAt >= Tuning.unexpectedLateWindow {
             pendingStrikes.removeFirst()
-            let explained = recentExpected.contains { abs($0 - strike.time) <= Tuning.unexpectedWindow }
+            let explained = recentExpected.contains {
+                $0 >= strike.time - Tuning.unexpectedWindow && $0 <= strike.time + Tuning.unexpectedLateWindow
+            }
             // Without a pitch it was a knock, cough or page turn, not a wrong note.
             if !explained, let guess = guessPitch() {
                 events.append(Event(kind: .unexpected(guess: guess), onsetTime: strike.time, detectedAt: time))
@@ -297,6 +316,29 @@ public final class NoteListener {
             return false
         }
         return true
+    }
+
+    /// Weighted mean of each partial's peak level in dB (no contrast), so a re-strike shows as a jump
+    /// even while the note is still ringing.
+    private func partialLevel(_ pitchIndex: Int) -> Float {
+        var total: Float = 0
+        var weights: Float = 0
+        for partial in partials[pitchIndex] {
+            total += partial.weight * peakDb(partial.own)
+            weights += partial.weight
+        }
+        return weights > 0 ? total / weights : -120
+    }
+
+    /// Largest jump in partial level over the latest lookback, each frame measured against the lookback
+    /// before it. Taking the largest lets a detection that lands a few frames after the strike still see it.
+    private func levelRise(_ midi: Int) -> Float {
+        let i = midi - Self.lowestMidi
+        var highest = -Float.infinity
+        for back in 1...(lookbackFrames + 1) {
+            highest = max(highest, levelRiseHistory[(historyIndex + historyLength - back) % historyLength][i])
+        }
+        return highest
     }
 
     /// Smallest salience of `midi` over the lookback frames before the latest one.

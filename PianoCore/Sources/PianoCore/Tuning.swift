@@ -59,6 +59,11 @@ public enum Tuning {
     public static let onsetRiseDb: Float = 6
     public static let onsetLookback: Double = 0.06
 
+    /// …and the raw level of its partials must have jumped by this much (peak over the lookback versus
+    /// the lookback before it). Salience alone wavers while a note rings (beating, dampers, pedal noise)
+    /// and dips-and-recovers look like onsets; a real hammer strike adds 20–35 dB, wavering adds ~1–2 dB.
+    public static let onsetLevelRiseDb: Float = 4
+
     /// No second onset of the same pitch within this time. Limits how fast a repeated note can be heard.
     public static let onsetRefractory: Double = 0.1
 
@@ -70,6 +75,10 @@ public enum Tuning {
 
     /// A strike with no expected onset within this window is reported as an unexpected note.
     public static let unexpectedWindow: Double = 0.08
+
+    /// Expected onsets this long after a strike still explain it. A key click comes ~50 ms before the
+    /// hammer, and the expected pitch is confirmed a few frames after that.
+    public static let unexpectedLateWindow: Double = 0.16
 
     /// Ignore the first moments after listening starts while the noise floor settles.
     public static let listenWarmup: Double = 0.25

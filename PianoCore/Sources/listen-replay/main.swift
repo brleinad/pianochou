@@ -89,7 +89,7 @@ var nextChange = 0
 var events: [NoteListener.Event] = []
 let hop = Tuning.hopSize
 var index = 0
-if traceMidi != nil { print("   time    sal   rise  snd armed  flux  eRise") }
+if traceMidi != nil { print("   time    sal   rise  snd armed  flux  eRise  lRise") }
 while index < samples.count {
     let time = Double(index) / sampleRate
     while nextChange < changes.count && changes[nextChange].time <= time {
@@ -109,8 +109,8 @@ while index < samples.count {
             case .unexpected(let g): "?? \(Pitch.name(midi: g))"
             }
         }.joined(separator: " ")
-        print(String(format: "%7.3f %6.1f %6.1f  %@   %@  %5.1f %6.1f  %@", listener.currentTime, d.salience, d.rise,
-                     d.sounding ? "*" : ".", d.armed ? "y" : "n", d.flux, d.energyRise, marks))
+        print(String(format: "%7.3f %6.1f %6.1f  %@   %@  %5.1f %6.1f %6.1f  %@", listener.currentTime, d.salience, d.rise,
+                     d.sounding ? "*" : ".", d.armed ? "y" : "n", d.flux, d.energyRise, d.levelRise, marks))
     }
 }
 
