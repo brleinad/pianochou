@@ -9,6 +9,7 @@ let package = Package(
     ],
     targets: [
         .target(name: "PianoCore"),
+        .executableTarget(name: "score-dump", dependencies: ["PianoCore"]),
         .testTarget(
             name: "PianoCoreTests",
             dependencies: ["PianoCore"],
