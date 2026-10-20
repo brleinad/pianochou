@@ -93,8 +93,8 @@ if traceMidi != nil { print("   time    sal   rise  snd armed  flux  eRise  lRis
 while index < samples.count {
     let time = Double(index) / sampleRate
     while nextChange < changes.count && changes[nextChange].time <= time {
+        // Like the app: changing what's expected keeps onset memory, so a ringing note isn't heard twice.
         listener.expected = changes[nextChange].midi
-        listener.resetOnsets()
         nextChange += 1
     }
     let chunk = Array(samples[index..<min(samples.count, index + hop)])

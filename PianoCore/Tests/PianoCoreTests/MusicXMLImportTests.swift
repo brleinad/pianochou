@@ -163,3 +163,41 @@ import Testing
         }
     }
 }
+
+#if os(macOS)
+import Foundation
+
+struct MXLTests {
+    /// Zips a fixture the way notation apps do, with the system `zip` tool.
+    func makeArchive(container: Bool) throws -> URL {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir.appendingPathComponent("META-INF"), withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: Fixture.url("waltz-3-4"), to: dir.appendingPathComponent("score.xml"))
+        var files = ["score.xml"]
+        if container {
+            let xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <container><rootfiles><rootfile full-path="score.xml" media-type="application/vnd.recordare.musicxml+xml"/></rootfiles></container>
+            """
+            try xml.write(to: dir.appendingPathComponent("META-INF/container.xml"), atomically: true, encoding: .utf8)
+            files.insert("META-INF/container.xml", at: 0)
+        }
+        let zip = Process()
+        zip.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
+        zip.currentDirectoryURL = dir
+        zip.arguments = ["-q", "-9", "score.mxl"] + files
+        try zip.run()
+        zip.waitUntilExit()
+        return dir.appendingPathComponent("score.mxl")
+    }
+
+    @Test(arguments: [true, false]) func readsCompressedMusicXML(container: Bool) throws {
+        let score = try MusicXMLImporter.parse(url: makeArchive(container: container))
+        #expect(score == (try Fixture.score("waltz-3-4")))
+    }
+
+    @Test func rejectsABrokenArchive() {
+        #expect(throws: MusicXMLError.self) { try MusicXMLImporter.parse(data: Data([0x50, 0x4B, 0x03, 0x04, 1, 2, 3])) }
+    }
+}
+#endif

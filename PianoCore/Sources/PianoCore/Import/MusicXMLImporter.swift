@@ -7,7 +7,7 @@ public enum MusicXMLError: Error, Equatable {
     case malformed(String)
 }
 
-/// Reads uncompressed partwise MusicXML (`.musicxml` / `.xml`).
+/// Reads partwise MusicXML: `.musicxml` / `.xml`, or compressed `.mxl`.
 public enum MusicXMLImporter {
 
     public static func parse(url: URL) throws -> Score {
@@ -15,6 +15,7 @@ public enum MusicXMLImporter {
     }
 
     public static func parse(data: Data) throws -> Score {
+        if MXLArchive.isZip(data) { return try parse(data: MXLArchive.scoreData(from: data)) }
         let root: XNode
         do {
             root = try XMLTree.parse(data)
