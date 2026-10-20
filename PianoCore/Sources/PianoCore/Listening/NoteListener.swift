@@ -11,8 +11,9 @@ public final class NoteListener {
         public enum Kind: Equatable, Sendable {
             /// One of the expected pitches was struck.
             case expected(midi: Int)
-            /// Something was struck that matches none of the expected pitches. `guess` is a rough pitch estimate.
-            case unexpected(guess: Int?)
+            /// A pitched note was struck that matches none of the expected pitches. `guess` is a rough estimate.
+            /// Unpitched sounds (knocks, speech bursts) are not reported.
+            case unexpected(guess: Int)
         }
 
         public var kind: Kind
@@ -203,8 +204,9 @@ public final class NoteListener {
         while let strike = pendingStrikes.first, time - strike.detectedAt >= Tuning.unexpectedWindow {
             pendingStrikes.removeFirst()
             let explained = recentExpected.contains { abs($0 - strike.time) <= Tuning.unexpectedWindow }
-            if !explained {
-                events.append(Event(kind: .unexpected(guess: guessPitch()), onsetTime: strike.time, detectedAt: time))
+            // Without a pitch it was a knock, cough or page turn, not a wrong note.
+            if !explained, let guess = guessPitch() {
+                events.append(Event(kind: .unexpected(guess: guess), onsetTime: strike.time, detectedAt: time))
             }
         }
         return events
