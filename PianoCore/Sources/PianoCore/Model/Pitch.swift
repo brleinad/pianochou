@@ -1,3 +1,5 @@
+import Foundation
+
 public enum Step: String, CaseIterable, Sendable {
     case C, D, E, F, G, A, B
 
@@ -34,5 +36,18 @@ public struct Pitch: Hashable, Sendable {
     public var name: String {
         let accidental = alter > 0 ? String(repeating: "#", count: alter) : String(repeating: "b", count: -alter)
         return "\(step.rawValue)\(accidental)\(octave)"
+    }
+}
+
+extension Pitch {
+    /// Equal-tempered frequency of a MIDI note.
+    public static func frequency(midi: Int, a4: Double = Tuning.referencePitchHz) -> Double {
+        a4 * pow(2, Double(midi - 69) / 12)
+    }
+
+    /// A display name for a MIDI note, spelled with sharps.
+    public static func name(midi: Int) -> String {
+        let names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+        return names[((midi % 12) + 12) % 12] + "\(midi / 12 - 1)"
     }
 }

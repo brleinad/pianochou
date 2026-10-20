@@ -8,7 +8,11 @@ let package = Package(
         .library(name: "PianoCore", targets: ["PianoCore"]),
     ],
     targets: [
-        .target(name: "PianoCore"),
+        .target(
+            name: "PianoCore",
+            // Audio analysis runs in real time; keep it optimized even in Debug app builds.
+            swiftSettings: [.unsafeFlags(["-O"], .when(configuration: .debug))]
+        ),
         .executableTarget(name: "score-dump", dependencies: ["PianoCore"]),
         .testTarget(
             name: "PianoCoreTests",
