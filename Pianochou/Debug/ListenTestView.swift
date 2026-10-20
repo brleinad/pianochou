@@ -87,9 +87,22 @@ struct ListenTestView: View {
             row("Algorithm", stats.lastAlgorithm.map { ms($0) } ?? "–")
             row("Unexpected", stats.unexpected == 0 ? "0"
                 : "\(stats.unexpected)  (last heard \(stats.lastGuess.map(Pitch.name(midi:)) ?? ""))")
-            Button("Reset counts") { stats = ListenStats() }
-                .font(Theme.text(15))
-                .frame(minHeight: 44)
+            HStack(spacing: 24) {
+                Button("Reset counts") { stats = ListenStats() }
+                Button(engine.isRecording
+                       ? String(format: "Stop recording %.0f s", engine.latest.recordingDuration ?? 0)
+                       : "Record") {
+                    if engine.isRecording { engine.stopRecording() } else { engine.startRecording() }
+                }
+                .foregroundStyle(engine.isRecording ? Theme.fix : Theme.now)
+            }
+            .font(Theme.text(15))
+            .frame(minHeight: 44)
+            if let name = engine.lastRecording {
+                Text("Saved \(name)")
+                    .font(Theme.text(13))
+                    .foregroundStyle(Theme.muted)
+            }
         }
     }
 

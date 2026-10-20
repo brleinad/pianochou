@@ -42,6 +42,28 @@ public final class NoteListener {
         isPresent(midi, salience: salience(of: midi))
     }
 
+    /// Per-frame internals for one pitch, for debugging tools.
+    public struct Diagnostics: Sendable {
+        public var salience: Float
+        /// Salience now minus its minimum over the onset lookback.
+        public var rise: Float
+        public var sounding: Bool
+        /// False while waiting for the salience to level off after an onset.
+        public var armed: Bool
+        /// Broadband strike measures for the latest frame.
+        public var flux: Float
+        public var energyRise: Float
+    }
+
+    public func diagnostics(for midi: Int) -> Diagnostics {
+        let now = salience(of: midi)
+        return Diagnostics(salience: now, rise: now - minimumRecent(midi), sounding: isSounding(midi),
+                           armed: !disarmed.contains(midi), flux: lastFlux, energyRise: lastEnergyRise)
+    }
+
+    private var lastFlux: Float = 0
+    private var lastEnergyRise: Float = 0
+
     /// Loudest bin in the latest frame, dBFS. For a level meter.
     public private(set) var peakLevelDb: Float = -120
 
@@ -159,6 +181,8 @@ public final class NoteListener {
         let flux = spectralFlux()
         let energyDb = 10 * log10(max(energy, 1e-12))
         let energyRise = energyDb - previousEnergyDb[0]
+        lastFlux = flux
+        lastEnergyRise = energyRise
         previousEnergyDb = [previousEnergyDb[1], energyDb]
         previousMagDb[0] = previousMagDb[1]
         previousMagDb[1] = magDb

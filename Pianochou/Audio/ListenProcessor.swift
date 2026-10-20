@@ -17,6 +17,8 @@ struct ListenUpdate: Sendable {
     var detections: [Detection] = []
     /// Processing time as a fraction of audio time.
     var load: Double = 0
+    /// Seconds recorded so far, when recording.
+    var recordingDuration: Double?
 }
 
 /// Owns the NoteListener and runs it on its own serial queue, pulling samples from the ring.
@@ -37,6 +39,9 @@ final class ListenProcessor: @unchecked Sendable {
     private var lastPublish: UInt64 = 0
     private var busySeconds = 0.0
     private var audioSeconds = 0.0
+    private var recorder: SessionRecorder?
+    /// Listener stream time at which the recording started.
+    private var recordingOffset = 0.0
 
     init(ring: SampleRing, sampleRate: Double, inputLatency: Double, onUpdate: @escaping @Sendable (ListenUpdate) -> Void) {
         self.ring = ring
@@ -69,6 +74,24 @@ final class ListenProcessor: @unchecked Sendable {
             self.expected = pitches
             self.listener.expected = pitches
             self.listener.resetOnsets()
+            self.recorder?.noteExpected(pitches)
+        }
+    }
+
+    func startRecording() {
+        queue.async {
+            self.recorder = SessionRecorder(sampleRate: self.sampleRate, expected: self.expected)
+            // The next sample read will be recording time zero.
+            self.recordingOffset = -Double(self.nextIndex - self.streamStart) / self.sampleRate
+        }
+    }
+
+    /// Saves and returns the recording's URL (or the error) on the processor queue.
+    func stopRecording(completion: @escaping @Sendable (Result<URL, Error>) -> Void) {
+        queue.async {
+            guard let recorder = self.recorder else { return }
+            self.recorder = nil
+            completion(Result { try recorder.save() })
         }
     }
 
@@ -83,8 +106,10 @@ final class ListenProcessor: @unchecked Sendable {
         }
         nextIndex = first + scratch.count
 
+        recorder?.append(scratch)
         let started = HostClock.now
         let events = listener.process(scratch)
+        if let recorder { events.forEach { recorder.note($0, offset: recordingOffset) } }
         let now = HostClock.now
         busySeconds += HostClock.seconds(now - started)
         audioSeconds += Double(scratch.count) / sampleRate
@@ -108,6 +133,7 @@ final class ListenProcessor: @unchecked Sendable {
         update.peakLevelDb = listener.peakLevelDb
         update.detections = detections
         update.load = audioSeconds > 0 ? busySeconds / audioSeconds : 0
+        update.recordingDuration = recorder?.duration
         if audioSeconds > 2 {
             busySeconds /= 2
             audioSeconds /= 2

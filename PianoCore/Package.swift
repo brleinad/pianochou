@@ -14,6 +14,7 @@ let package = Package(
             swiftSettings: [.unsafeFlags(["-O"], .when(configuration: .debug))]
         ),
         .executableTarget(name: "score-dump", dependencies: ["PianoCore"]),
+        .executableTarget(name: "listen-replay", dependencies: ["PianoCore"]),
         .testTarget(
             name: "PianoCoreTests",
             dependencies: ["PianoCore"],

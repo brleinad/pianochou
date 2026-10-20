@@ -24,6 +24,26 @@ final class ListenEngine {
         didSet { processor?.setExpected(expected) }
     }
 
+    /// Name of the last saved recording, or the error saving it.
+    private(set) var lastRecording: String?
+
+    var isRecording: Bool { latest.recordingDuration != nil }
+
+    func startRecording() {
+        processor?.startRecording()
+    }
+
+    func stopRecording() {
+        processor?.stopRecording { [weak self] result in
+            Task { @MainActor in
+                switch result {
+                case .success(let url): self?.lastRecording = url.lastPathComponent
+                case .failure(let error): self?.lastRecording = "Save failed: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
     private var engine: AVAudioEngine?
     private var processor: ListenProcessor?
 
