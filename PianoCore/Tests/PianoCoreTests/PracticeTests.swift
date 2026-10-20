@@ -116,6 +116,24 @@ struct RunFollowerTests {
         #expect(flow.result?.good == 8)
     }
 
+    @Test func backOnTheBeatAfterARushIsOnTime() throws {
+        // E rushed by half a beat, then F lands where it should have.
+        let (_, follower) = try scale()
+        for (midi, time) in zip(scaleMidis, [0, 1, 1.5, 3, 4, 5, 6, 7]) { follower.hear(midi, at: time) }
+        let timings = try #require(follower.result).notes.map(\.timing)
+        #expect(timings[2] == .early)
+        #expect(timings.filter { $0 != .onTime }.count == 1)
+    }
+
+    @Test func steadyAfterAHesitationIsOnTime() throws {
+        // A pause before E, then the same pulse from there.
+        let (_, follower) = try scale()
+        for (midi, time) in zip(scaleMidis, [0, 1, 2.8, 3.8, 4.8, 5.8, 6.8, 7.8]) { follower.hear(midi, at: time) }
+        let timings = try #require(follower.result).notes.map(\.timing)
+        #expect(timings[2] == .late)
+        #expect(timings.filter { $0 != .onTime }.count == 1)
+    }
+
     @Test func silenceEndsTheRun() throws {
         let (_, follower) = try scale()
         for (i, midi) in scaleMidis.prefix(3).enumerated() { follower.hear(midi, at: Double(i)) }

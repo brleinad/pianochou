@@ -147,12 +147,19 @@ public final class RunFollower {
         }
     }
 
+    /// On time if it fits the beat counted from the last on-time chord (forgives coming back after a rush),
+    /// or from the chord just before (forgives carrying on steadily after a hesitation).
     private func timing(of i: Int, at time: Double) -> RunResult.Timing {
-        guard let k = (0..<i).last(where: { chordState[$0].firstHit != nil }), let previous = chordState[k].firstHit else { return .onTime }
-        let gap = (snippet.chords[i].time - snippet.chords[k].time).doubleValue * secondsPerQuarter
-        let deviation = time - (previous + gap)
-        let tolerance = max(Tuning.timingToleranceSeconds, Tuning.timingToleranceFraction * gap)
-        return deviation < -tolerance ? .early : deviation > tolerance ? .late : .onTime
+        func deviation(from k: Int) -> (Double, Double)? {
+            guard let hit = chordState[k].firstHit else { return nil }
+            let gap = (snippet.chords[i].time - snippet.chords[k].time).doubleValue * secondsPerQuarter
+            return (time - (hit + gap), max(Tuning.timingToleranceSeconds, Tuning.timingToleranceFraction * gap))
+        }
+        let played = (0..<i).filter { chordState[$0].firstHit != nil }
+        guard let previous = played.last, let local = deviation(from: previous) else { return .onTime }
+        let anchor = played.last { chordState[$0].timing == .onTime }.flatMap(deviation) ?? local
+        if abs(anchor.0) <= anchor.1 || abs(local.0) <= local.1 { return .onTime }
+        return local.0 < 0 ? .early : .late
     }
 
     private func close(_ i: Int) {
@@ -272,7 +279,9 @@ public struct RunResult: Sendable {
         let hand = note.staff == 1 ? "Right" : "Left"
         let fingers = ["thumb", "index finger", "middle finger", "ring finger", "pinky"]
         let who: String
-        if bad.count > 1 {
+        if Set(bad.map(\.staff)).count > 1 {
+            who = "Both hands"
+        } else if bad.count > 1 {
             who = "\(hand) hand"
         } else if let finger = note.fingering, (1...5).contains(finger) {
             who = "\(hand) \(fingers[finger - 1])"

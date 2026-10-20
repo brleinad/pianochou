@@ -29,6 +29,11 @@ final class ListenEngine {
 
     var isRecording: Bool { latest.recordingDuration != nil }
 
+    /// Forget recent onsets, e.g. when a run starts.
+    func resetOnsets() {
+        processor?.resetOnsets()
+    }
+
     func startRecording() {
         processor?.startRecording()
     }

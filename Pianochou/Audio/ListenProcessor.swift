@@ -5,6 +5,8 @@ import PianoCore
 struct ListenUpdate: Sendable {
     struct Detection: Sendable {
         var kind: NoteListener.Event.Kind
+        /// Strike time on the stream clock (see `ListenUpdate.streamTime`).
+        var onsetTime: Double
         /// Key strike to detection, as measured by the algorithm alone.
         var algorithmLatency: Double
         /// Key strike to the app knowing about it: algorithm + buffering + input hardware.
@@ -14,6 +16,9 @@ struct ListenUpdate: Sendable {
     var salience: [Int: Float] = [:]
     var sounding: Set<Int> = []
     var peakLevelDb: Float = -120
+    /// Seconds of audio since the microphone started: newest analysed sample. Keeps counting
+    /// across listener restarts, so it is a steady clock for following a run.
+    var streamTime: Double = 0
     var detections: [Detection] = []
     /// Processing time as a fraction of audio time.
     var load: Double = 0
@@ -73,9 +78,14 @@ final class ListenProcessor: @unchecked Sendable {
         queue.async {
             self.expected = pitches
             self.listener.expected = pitches
-            self.listener.resetOnsets()
             self.recorder?.noteExpected(pitches)
         }
+    }
+
+    /// Forget recent onsets, e.g. at the start of a run. Changing `expected` alone keeps them, so a
+    /// note still ringing from the last chord isn't heard again when the follower moves on.
+    func resetOnsets() {
+        queue.async { self.listener.resetOnsets() }
     }
 
     func startRecording() {
@@ -119,6 +129,7 @@ final class ListenProcessor: @unchecked Sendable {
             let strikeHost = ring.hostTime(forSample: strikeSample, sampleRate: sampleRate)
             let sinceStrike = now > strikeHost ? HostClock.seconds(now - strikeHost) : 0
             return .init(kind: event.kind,
+                         onsetTime: Double(streamStart) / sampleRate + event.onsetTime,
                          algorithmLatency: event.detectedAt - event.onsetTime,
                          totalLatency: sinceStrike + inputLatency)
         }
@@ -131,6 +142,7 @@ final class ListenProcessor: @unchecked Sendable {
             if listener.isSounding(midi) { update.sounding.insert(midi) }
         }
         update.peakLevelDb = listener.peakLevelDb
+        update.streamTime = Double(streamStart) / sampleRate + listener.currentTime
         update.detections = detections
         update.load = audioSeconds > 0 ? busySeconds / audioSeconds : 0
         update.recordingDuration = recorder?.duration

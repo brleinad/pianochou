@@ -1,0 +1,209 @@
+import Foundation
+import Observation
+import PianoCore
+
+/// One sitting at the piano with a snippet: listens, follows each run, keeps the last result.
+/// A run starts on its first note and ends on silence; between runs, playing the first note again starts the next.
+@MainActor
+@Observable
+final class PracticeSession {
+    enum Phase: Equatable {
+        /// Waiting for the first note (hint: it's highlighted).
+        case ready
+        case running
+        /// Showing the last result until the next run starts.
+        case result
+    }
+
+    let score: Score
+    let engine = ListenEngine()
+    private(set) var settings: PracticeSettings
+    private(set) var engraving: Engraving
+    private(set) var snippet: Snippet
+    private(set) var follower: RunFollower
+    private(set) var phase: Phase = .ready
+    private(set) var lastResult: RunResult?
+    /// Bumped on every heard note, so views redraw marks.
+    private(set) var revision = 0
+
+    /// The finished run, still taking late notes of its last chord.
+    private var finished: RunFollower?
+    private var finishedAt = 0.0
+    private var ticker: Task<Void, Never>?
+    var onSettingsChange: ((PracticeSettings) -> Void)?
+
+    init(score: Score, settings: PracticeSettings) {
+        self.score = score
+        self.settings = settings
+        let snippet = Snippet(score: score, measures: settings.bars, hands: settings.handsValue)
+        self.snippet = snippet
+        engraving = Engraver.engrave(score, measures: settings.firstBar..<(settings.lastBar + 1))
+        follower = RunFollower(snippet: snippet, tempo: settings.tempo, mode: .drill)
+    }
+
+    var measureCount: Int { score.parts[0].measures.count }
+    var hasNext: Bool { settings.lastBar + 1 < measureCount }
+
+    /// "Bars 1–2", using the printed numbers.
+    var barsLabel: String {
+        let measures = score.parts[0].measures
+        let first = measures[settings.firstBar].number, last = measures[settings.lastBar].number
+        return first == last ? "Bar \(first)" : "Bars \(first)–\(last)"
+    }
+
+    // MARK: Lifecycle
+
+    func start() async {
+        if UserDefaults.standard.bool(forKey: "simulateRun") {
+            await simulateRun()
+            return
+        }
+        engine.onDetection = { [weak self] detection in self?.heard(detection) }
+        await engine.start()
+        engine.resetOnsets()
+        updateExpected()
+        ticker = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(100))
+                self?.tick()
+            }
+        }
+    }
+
+    func stop() {
+        ticker?.cancel()
+        ticker = nil
+        engine.onDetection = nil
+        engine.stop()
+    }
+
+    // MARK: Following
+
+    private func heard(_ detection: ListenUpdate.Detection) {
+        let midi: Int = switch detection.kind {
+        case let .expected(m): m
+        case let .unexpected(guess): guess
+        }
+        let time = detection.onsetTime
+
+        // A late hand for the run that just ended.
+        if let finished, time - finishedAt <= Tuning.chordSpread {
+            finished.hear(midi, at: time)
+            lastResult = finished.result
+            revision += 1
+            return
+        }
+
+        let wasWaiting = follower.state == .waiting
+        follower.hear(midi, at: time)
+        if wasWaiting && follower.state != .waiting {
+            phase = .running
+            finished = nil
+        }
+        revision += 1
+        if follower.state == .finished { endRun(at: time) }
+        updateExpected()
+    }
+
+    private func tick() {
+        guard follower.state == .running else { return }
+        follower.tick(now: engine.latest.streamTime)
+        if follower.state == .finished { endRun(at: engine.latest.streamTime) }
+    }
+
+    private func endRun(at time: Double) {
+        lastResult = follower.result
+        finished = follower
+        finishedAt = time
+        phase = .result
+        follower = RunFollower(snippet: snippet, tempo: settings.tempo, mode: .drill)
+        updateExpected()
+    }
+
+    private func updateExpected() {
+        let pitches = follower.expectedPitches
+        if engine.expected != pitches { engine.expected = pitches }
+    }
+
+    // MARK: Between runs
+
+    /// About 10% slower, in steps of 5.
+    func slower() {
+        var next = settings
+        next.tempo = max(30, ((settings.tempo * 0.9) / 5).rounded(.down) * 5)
+        apply(next)
+    }
+
+    /// The same number of bars, straight after these.
+    func next() {
+        guard hasNext else { return }
+        var next = settings
+        let length = settings.lastBar - settings.firstBar
+        next.firstBar = settings.lastBar + 1
+        next.lastBar = min(measureCount - 1, next.firstBar + length)
+        apply(next)
+    }
+
+    func again() {
+        apply(settings)
+    }
+
+    private func apply(_ new: PracticeSettings) {
+        settings = new
+        snippet = Snippet(score: score, measures: new.bars, hands: new.handsValue)
+        engraving = Engraver.engrave(score, measures: new.firstBar..<(new.lastBar + 1))
+        follower = RunFollower(snippet: snippet, tempo: new.tempo, mode: .drill)
+        finished = nil
+        phase = .ready
+        engine.resetOnsets()
+        updateExpected()
+        onSettingsChange?(new)
+    }
+
+    // MARK: Simulator checks
+
+    /// Debug (`-simulateRun YES`): plays the snippet without a piano, skipping one note and rushing
+    /// another, stopping halfway for a screenshot of the playing screen, then showing the result.
+    private func simulateRun() async {
+        let spq = 60 / settings.tempo
+        var events: [(midi: Int, time: Double)] = []
+        for (i, chord) in snippet.chords.enumerated() {
+            let time = 1 + (chord.time - snippet.start).doubleValue * spq - (i == 3 ? 0.4 * spq : 0)
+            for (n, note) in chord.notes.enumerated() where !(i == 1 && n == 0) {
+                events.append((note.midi, time + Double(n) * 0.02))
+            }
+        }
+        let pause = UserDefaults.standard.double(forKey: "simulatePause")
+        for (index, event) in events.enumerated() {
+            heard(.init(kind: .expected(midi: event.midi), onsetTime: event.time, algorithmLatency: 0, totalLatency: 0))
+            if pause > 0 && index == events.count / 2 { try? await Task.sleep(for: .seconds(pause)) }
+        }
+        if follower.state == .running {
+            follower.tick(now: (events.last?.time ?? 0) + 10)
+            endRun(at: (events.last?.time ?? 0) + 10)
+        }
+    }
+
+    // MARK: Drawing
+
+    /// How a note on the staff should look: the other hand is faded, done notes graded.
+    func mark(_ ref: Engraving.NoteRef) -> NoteMark {
+        let event = score.parts[0].measures[ref.measure].events[ref.event]
+        guard settings.handsValue.includes(staff: event.staff) else { return .played }
+        let source = phase == .result ? finished : follower
+        switch source?.outcome(for: ref) {
+        case .good: return .played
+        case .bad: return .mistake
+        case nil: return .upcoming
+        }
+    }
+
+    /// The highlighted beat: the next chord while playing, the first chord when ready, none on the result.
+    var currentTime: Rational? {
+        phase == .result ? nil : follower.currentTime
+    }
+
+    var progress: Double {
+        phase == .result ? 1 : follower.progress
+    }
+}

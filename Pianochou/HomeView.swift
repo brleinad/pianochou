@@ -1,45 +1,109 @@
-import SwiftUI
 import PianoCore
+import SwiftUI
 
-/// Placeholder Home. The clef proves Bravura loaded; the title proves Hanken Grotesk loaded.
+/// The imported scores, and the way to add one.
 struct HomeView: View {
-    /// Launch with `-listen-test` to open the listen screen directly (for simulator checks).
+    @State private var library = ScoreLibrary()
+    @State private var path: [ScoreEntry] = []
+    @State private var importing = false
+    @State private var importError: String?
+    /// Launch with `-listen-test` or `-staff-gallery` to open those screens directly (for simulator checks).
     @State private var showListenTest = ProcessInfo.processInfo.arguments.contains("-listen-test")
-    /// Launch with `-staff-gallery` to open the staff gallery directly.
     @State private var showStaffGallery = ProcessInfo.processInfo.arguments.contains("-staff-gallery")
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 24) {
-                Spacer()
-                Text("\u{E050}") // SMuFL gClef
-                    .font(Theme.music(96))
-                    .foregroundStyle(Theme.ink)
-                    .accessibilityHidden(true)
+        NavigationStack(path: $path) {
+            VStack(alignment: .leading, spacing: 24) {
                 Text("Pianochou")
-                    .font(Theme.text(44, relativeTo: .largeTitle).weight(.light))
+                    .font(Theme.text(40, relativeTo: .largeTitle))
                     .foregroundStyle(Theme.ink)
-                Spacer()
-                NavigationLink("Listen test") { ListenTestView() }
-                    .font(Theme.text(18))
-                    .foregroundStyle(Theme.paper)
-                    .frame(maxWidth: 320, minHeight: 58)
-                    .background(Capsule().fill(Theme.ink))
-                NavigationLink("Staff gallery") { StaffGalleryView() }
-                    .font(Theme.text(18))
-                    .foregroundStyle(Theme.ink)
-                    .frame(maxWidth: 320, minHeight: 58)
-                    .overlay(Capsule().stroke(Theme.hairline))
-                Text("v\(PianoCore.version)")
-                    .font(Theme.text(15))
-                    .foregroundStyle(Theme.muted)
+                    .padding(.top, 24)
+
+                if library.entries.isEmpty {
+                    Spacer()
+                    Text("\u{E050}") // SMuFL gClef
+                        .font(Theme.music(96))
+                        .foregroundStyle(Theme.hairline)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityHidden(true)
+                    Spacer()
+                } else {
+                    List {
+                        ForEach(library.entries) { entry in
+                            NavigationLink(value: entry) {
+                                Text(entry.title)
+                                    .font(Theme.text(19))
+                                    .foregroundStyle(Theme.ink)
+                                    .padding(.vertical, 10)
+                            }
+                            .listRowBackground(Theme.paper)
+                            .listRowSeparatorTint(Theme.hairline)
+                        }
+                        .onDelete { offsets in offsets.map { library.entries[$0] }.forEach(library.delete) }
+                    }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                }
+
+                if let importError {
+                    Text(importError)
+                        .font(Theme.text(15))
+                        .foregroundStyle(Theme.fix)
+                }
+                Button("Add a score") { importing = true }
+                    .buttonStyle(PillStyle(filled: true))
+
+                HStack(spacing: 20) {
+                    NavigationLink("Listen test") { ListenTestView() }
+                    NavigationLink("Staff gallery") { StaffGalleryView() }
+                    Spacer()
+                    Text("v\(PianoCore.version)")
+                }
+                .font(Theme.text(14))
+                .foregroundStyle(Theme.muted)
             }
-            .padding(24)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 12)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(Theme.paper)
+            .navigationDestination(for: ScoreEntry.self) { entry in
+                SetupView(library: library, entry: entry)
+            }
             .navigationDestination(isPresented: $showListenTest) { ListenTestView() }
             .navigationDestination(isPresented: $showStaffGallery) { StaffGalleryView() }
+            .onAppear {
+                // Debug: `-openScore <file name>` jumps to a score's setup.
+                if path.isEmpty, let name = UserDefaults.standard.string(forKey: "openScore"),
+                   let entry = library.entries.first(where: { $0.id == name }) {
+                    path = [entry]
+                }
+            }
+            .fileImporter(isPresented: $importing, allowedContentTypes: [.musicXML, .compressedMusicXML, .xml]) { result in
+                importError = nil
+                do {
+                    let entry = try library.importScore(from: result.get())
+                    path.append(entry)
+                } catch {
+                    importError = "Couldn't read that file. Export it as MusicXML and try again."
+                }
+            }
         }
+    }
+}
+
+/// The app's pill button: 58 pt tall, ink-filled for the main action, outlined otherwise.
+struct PillStyle: ButtonStyle {
+    var filled: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(Theme.text(18).weight(.medium))
+            .foregroundStyle(filled ? Theme.paper : Theme.ink)
+            .frame(maxWidth: .infinity, minHeight: 58)
+            .background(Capsule().fill(filled ? Theme.ink : .clear))
+            .overlay(Capsule().stroke(filled ? .clear : Theme.hairline))
+            .contentShape(Capsule())
+            .opacity(configuration.isPressed ? 0.7 : 1)
     }
 }
 
