@@ -99,6 +99,8 @@ struct PracticeSettings: Codable, Hashable {
     var hands: String
     /// Quarter notes per minute.
     var tempo: Double
+    /// Click on every beat while practicing.
+    var metronome = false
 
     var bars: ClosedRange<Int> { firstBar...lastBar }
     var handsValue: Hands { Hands(rawValue: hands) ?? .both }
@@ -118,5 +120,17 @@ struct PracticeSettings: Codable, Hashable {
             }
         }
         return PracticeSettings(firstBar: 0, lastBar: last, hands: Hands.both.rawValue, tempo: tempo)
+    }
+}
+
+extension PracticeSettings {
+    /// Settings saved before the metronome existed have no `metronome`.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        firstBar = try c.decode(Int.self, forKey: .firstBar)
+        lastBar = try c.decode(Int.self, forKey: .lastBar)
+        hands = try c.decode(String.self, forKey: .hands)
+        tempo = try c.decode(Double.self, forKey: .tempo)
+        metronome = try c.decodeIfPresent(Bool.self, forKey: .metronome) ?? false
     }
 }

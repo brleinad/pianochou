@@ -128,6 +128,29 @@ public enum Tuning {
     /// A run ends when nothing has been played for this long after the next note was due.
     public static let silenceGrace: Double = 1.5
 
+    // MARK: Tempo and metronome
+
+    /// Practice tempos, in quarter notes per minute, and the step of the − / + buttons.
+    public static let tempoRange: ClosedRange<Double> = 30...240
+    public static let tempoStep: Double = 5
+    /// "Slower" after a run: about this much of the tempo, rounded down to a step.
+    public static let slowerFactor: Double = 0.9
+
+    /// The click: a short sine burst well above `maxPartialHz` (and the 5 kHz strike band), so the
+    /// listener ignores it. Mixed into two real piano recordings at up to -3 dBFS, 8–10 kHz clicks added
+    /// no detections and hid none; low "woodblock" or noise clicks added many.
+    public static let metronomeClickHz: Double = 9000
+    /// The first beat of the bar: higher and louder.
+    public static let metronomeAccentHz: Double = 10000
+    /// Peak level of the accented click (full scale = 1), and the other beats relative to it.
+    public static let metronomeVolume: Double = 0.5
+    public static let metronomeOffbeatLevel: Double = 0.55
+    /// Length, fade-in and decay time constant of a click, in seconds. The fade-in keeps the burst's
+    /// energy out of the analysed band (a hard start splatters across all frequencies).
+    public static let metronomeClickSeconds: Double = 0.04
+    public static let metronomeClickAttack: Double = 0.0015
+    public static let metronomeClickDecay: Double = 0.006
+
     // MARK: Analyzer weights (M5)
 
     // MARK: Tempo ladder and hint fading (M7)

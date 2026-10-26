@@ -61,6 +61,7 @@ final class PracticeSession {
         engine.onDetection = { [weak self] detection in self?.heard(detection) }
         await engine.start()
         engine.resetOnsets()
+        updateClicks()
         updateExpected()
         ticker = Task { [weak self] in
             while !Task.isCancelled {
@@ -75,6 +76,7 @@ final class PracticeSession {
         ticker = nil
         engine.onDetection = nil
         engine.stop()
+        clicking = nil
     }
 
     // MARK: Following
@@ -127,11 +129,47 @@ final class PracticeSession {
 
     // MARK: Between runs
 
-    /// About 10% slower, in steps of 5.
+    /// About 10% slower, in whole tempo steps.
     func slower() {
         var next = settings
-        next.tempo = max(30, ((settings.tempo * 0.9) / 5).rounded(.down) * 5)
+        next.tempo = Metronome.slower(settings.tempo)
         apply(next)
+    }
+
+    /// A tempo step faster (+1) or slower (-1); starts over from the first note.
+    func changeTempo(by steps: Int) {
+        var next = settings
+        next.tempo = Metronome.step(settings.tempo, by: steps)
+        guard next.tempo != settings.tempo else { return }
+        apply(next)
+    }
+
+    var canGoSlower: Bool { settings.tempo > Tuning.tempoRange.lowerBound }
+    var canGoFaster: Bool { settings.tempo < Tuning.tempoRange.upperBound }
+
+    /// Turns the click on or off without interrupting the run.
+    func toggleMetronome() {
+        settings.metronome.toggle()
+        updateClicks()
+        onSettingsChange?(settings)
+    }
+
+    /// What the metronome is clicking, or nil when it's off.
+    private var clicking: Clicks?
+    private struct Clicks: Equatable {
+        var tempo: Double
+        var time: TimeSignature
+    }
+
+    /// Clicks on every beat of the snippet's time signature while the metronome is on. Restarted only
+    /// when the tempo changes, so the beat doesn't jump.
+    private func updateClicks() {
+        let time = score.parts[0].measures[settings.firstBar].time
+        let wanted = settings.metronome && engine.state == .running ? Clicks(tempo: settings.tempo, time: time) : nil
+        guard wanted != clicking else { return }
+        clicking = wanted
+        guard let wanted else { return engine.setClicks(nil) }
+        engine.setClicks(Metronome.bar(wanted.time, tempo: wanted.tempo, sampleRate: engine.clickSampleRate))
     }
 
     /// The same number of bars, straight after these.
@@ -157,6 +195,7 @@ final class PracticeSession {
         phase = .ready
         engine.resetOnsets()
         updateExpected()
+        updateClicks()
         onSettingsChange?(new)
     }
 

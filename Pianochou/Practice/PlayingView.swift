@@ -15,11 +15,14 @@ struct PlayingView: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             Theme.paper.ignoresSafeArea()
-            if session.phase == .result, let result = session.lastResult {
-                BetweenRunsView(result: result, hasNext: session.hasNext,
-                                slower: session.slower, next: session.next)
-            } else {
-                staff
+            VStack(spacing: 0) {
+                header
+                if session.phase == .result, let result = session.lastResult {
+                    BetweenRunsView(result: result, hasNext: session.hasNext,
+                                    slower: session.slower, next: session.next)
+                } else {
+                    staff
+                }
             }
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
@@ -45,19 +48,54 @@ struct PlayingView: View {
         }
     }
 
+    /// The top edge: which bars, the listening dot, the metronome, and the tempo with − / +.
+    private var header: some View {
+        HStack(spacing: 4) {
+            Text(session.barsLabel)
+                .font(Theme.text(16).weight(.semibold))
+            Spacer()
+            listening
+                .padding(.trailing, 12)
+            Button(action: session.toggleMetronome) {
+                Image(systemName: session.settings.metronome ? "metronome.fill" : "metronome")
+                    .font(.system(size: 19))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .foregroundStyle(session.settings.metronome ? Theme.now : Theme.muted)
+            .accessibilityLabel("Metronome")
+            .accessibilityValue(session.settings.metronome ? "On" : "Off")
+            tempoButton("minus", enabled: session.canGoSlower) { session.changeTempo(by: -1) }
+                .accessibilityLabel("Slower")
+            Text("\(Int(session.settings.tempo))")
+                .font(Theme.text(17).weight(.medium))
+                .monospacedDigit()
+                .frame(minWidth: 34)
+                .accessibilityLabel("\(Int(session.settings.tempo)) beats per minute")
+            tempoButton("plus", enabled: session.canGoFaster) { session.changeTempo(by: 1) }
+                .accessibilityLabel("Faster")
+        }
+        .foregroundStyle(Theme.ink)
+        .frame(height: 44)
+        .padding(.leading, 96)
+        .padding(.trailing, 44)
+        .padding(.top, 8)
+    }
+
+    private func tempoButton(_ symbol: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 15))
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .foregroundStyle(enabled ? Theme.ink : Theme.hairline)
+        .disabled(!enabled)
+    }
+
     private var staff: some View {
         let _ = session.revision // redraw marks on every heard note
         return VStack(spacing: 12) {
-            HStack {
-                Text(session.barsLabel)
-                    .font(Theme.text(16).weight(.semibold))
-                Spacer()
-                listening
-            }
-            .foregroundStyle(Theme.ink)
-            .frame(height: 32)
-            .padding(.leading, 40)
-
             StaffView(engraving: session.engraving, currentTime: session.currentTime, mark: session.mark)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -71,23 +109,18 @@ struct PlayingView: View {
             .accessibilityHidden(true)
         }
         .padding(.horizontal, 56)
-        .padding(.top, 16)
+        .padding(.top, 4)
         .padding(.bottom, 24)
     }
 
-    /// The small listening dot and the tempo, or why we can't listen.
+    /// The small listening dot, or why we can't listen.
     @ViewBuilder private var listening: some View {
         switch session.engine.state {
         case .running, .idle:
-            HStack(spacing: 10) {
-                Circle()
-                    .fill(session.engine.state == .running ? Theme.now : Theme.hairline)
-                    .frame(width: 8, height: 8)
-                Text("\(Int(session.settings.tempo))")
-                    .font(Theme.text(15).weight(.medium))
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Listening, \(Int(session.settings.tempo)) beats per minute")
+            Circle()
+                .fill(session.engine.state == .running ? Theme.now : Theme.hairline)
+                .frame(width: 8, height: 8)
+                .accessibilityLabel("Listening")
         case .denied:
             Text("Microphone off in Settings")
                 .font(Theme.text(15))
@@ -114,7 +147,7 @@ struct BetweenRunsView: View {
                     .font(Theme.text(96).weight(.light))
                     .kerning(-3)
                     .foregroundStyle(Theme.ink)
-                    .padding(.top, 40)
+                    .padding(.top, 24)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
                 Spacer()
@@ -153,11 +186,11 @@ struct BetweenRunsView: View {
                         .opacity(hasNext ? 1 : 0.4)
                 }
             }
-            .padding(.top, 40)
+            .padding(.top, 24)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 56)
-        .padding(.top, 48)
+        .padding(.top, 8)
         .padding(.bottom, 36)
     }
 }

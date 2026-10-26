@@ -51,6 +51,24 @@ final class ListenEngine {
 
     private var engine: AVAudioEngine?
     private var processor: ListenProcessor?
+    private var player: AVAudioPlayerNode?
+    private var clickFormat: AVAudioFormat?
+
+    /// Sample rate `setClicks` expects.
+    var clickSampleRate: Double { clickFormat?.sampleRate ?? 48_000 }
+
+    /// Loops one bar of metronome clicks through the speaker while listening; nil stops them.
+    func setClicks(_ bar: [Float]?) {
+        guard let player, let format = clickFormat else { return }
+        player.stop()
+        guard let bar, !bar.isEmpty,
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(bar.count)),
+              let channel = buffer.floatChannelData?[0] else { return }
+        buffer.frameLength = AVAudioFrameCount(bar.count)
+        bar.withUnsafeBufferPointer { channel.update(from: $0.baseAddress!, count: bar.count) }
+        player.scheduleBuffer(buffer, at: nil, options: .loops)
+        player.play()
+    }
 
     func start() async {
         guard state != .running else { return }
@@ -81,6 +99,11 @@ final class ListenEngine {
             let sink = Self.makeSink(writingTo: ring)
             engine.attach(sink)
             engine.connect(input, to: sink, format: format)
+            // The metronome plays through the same engine, mono at the output's rate.
+            let player = AVAudioPlayerNode()
+            engine.attach(player)
+            let clickFormat = AVAudioFormat(standardFormatWithSampleRate: engine.mainMixerNode.outputFormat(forBus: 0).sampleRate, channels: 1)
+            engine.connect(player, to: engine.mainMixerNode, format: clickFormat)
             engine.prepare()
             try engine.start()
 
@@ -88,6 +111,8 @@ final class ListenEngine {
             processor.start()
             self.engine = engine
             self.processor = processor
+            self.player = player
+            self.clickFormat = clickFormat
             sampleRate = format.sampleRate
             ioBufferDuration = session.ioBufferDuration
             inputLatency = session.inputLatency
@@ -98,10 +123,12 @@ final class ListenEngine {
     }
 
     func stop() {
+        player?.stop()
         processor?.stop()
         engine?.stop()
         processor = nil
         engine = nil
+        player = nil
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         if state == .running { state = .idle }
     }

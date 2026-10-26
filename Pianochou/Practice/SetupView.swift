@@ -70,8 +70,9 @@ struct SetupView: View {
                 .pickerStyle(.segmented)
             }
             NumberStepper(label: "Tempo", value: "\(Int(current.tempo))",
-                          canDecrease: current.tempo > 30, canIncrease: current.tempo < 240) { step in
-                update { s in s.tempo = min(max(30, s.tempo + Double(step) * 5), 240) }
+                          canDecrease: current.tempo > Tuning.tempoRange.lowerBound,
+                          canIncrease: current.tempo < Tuning.tempoRange.upperBound) { step in
+                update { s in s.tempo = Metronome.step(s.tempo, by: step) }
             }
 
             Spacer(minLength: 0)
