@@ -103,6 +103,13 @@ public final class NoteListener {
     private var pendingStrikes: [(time: Double, detectedAt: Double)] = []
     private var recentExpected: [Double] = []
 
+    /// When the app's metronome clicks reach the microphone (stream time), see `clickArrives(at:)`.
+    private var clicks: [Double] = []
+    /// Each pitch's partial level just before the current click, while one is sounding.
+    private var levelBeforeClick: [Float]?
+    /// Expected onsets heard during a click, decided once it has died away.
+    private var held: [(event: Event, midi: Int, previousOnset: Double?)] = []
+
     private struct Window {
         var lo: Int
         var hi: Int
@@ -155,6 +162,14 @@ public final class NoteListener {
         disarmed = []
         pendingStrikes = []
         recentExpected = []
+        held = []
+    }
+
+    /// The app's metronome click reaches the microphone at `time` (stream time, like `currentTime`).
+    /// Notes heard while it sounds must still be there once it has died away (`Tuning.clickConfirmDb`),
+    /// so the click itself, or a ringing note it makes flicker, isn't heard as a strike.
+    public func clickArrives(at time: Double) {
+        clicks.append(time)
     }
 
     public func process(_ samples: [Float]) -> [Event] {
@@ -211,6 +226,25 @@ public final class NoteListener {
         guard time >= Tuning.listenWarmup else { return [] }
         var events: [Event] = []
 
+        clicks.removeAll { time > $0 + Tuning.clickMaskAfter }
+        let duringClick = clicks.contains { time >= $0 - Tuning.clickMaskBefore }
+        if duringClick && levelBeforeClick == nil {
+            // The frame before this one still predates the click.
+            levelBeforeClick = levelHistory[(slot + historyLength - 1) % historyLength]
+        } else if !duringClick, let before = levelBeforeClick {
+            levelBeforeClick = nil
+            for hold in held {
+                let i = hold.midi - Self.lowestMidi
+                if levelHistory[slot][i] >= before[i] + Tuning.clickConfirmDb {
+                    recentExpected.append(hold.event.onsetTime)
+                    events.append(Event(kind: hold.event.kind, onsetTime: hold.event.onsetTime, detectedAt: time))
+                } else {
+                    lastOnset[hold.midi] = hold.previousOnset
+                }
+            }
+            held = []
+        }
+
         // Expected pitches: salience present and rising sharply.
         for midi in expected.sorted() where (Self.lowestMidi...Self.highestMidi).contains(midi) {
             let now = salience(of: midi)
@@ -223,17 +257,23 @@ public final class NoteListener {
             // Salience recovering from a dip is not a strike; the partials themselves must get louder.
             guard levelRise(midi) >= Tuning.onsetLevelRiseDb else { continue }
             if let last = lastOnset[midi], time - last < Tuning.onsetRefractory { continue }
+            let previousOnset = lastOnset[midi]
             lastOnset[midi] = time
             disarmed.insert(midi)
             let onset = time - Tuning.onsetTimeCorrection
+            let event = Event(kind: .expected(midi: midi), onsetTime: onset, detectedAt: time)
+            if duringClick {
+                held.append((event, midi, previousOnset))
+                continue
+            }
             recentExpected.append(onset)
-            events.append(Event(kind: .expected(midi: midi), onsetTime: onset, detectedAt: time))
+            events.append(event)
         }
 
         // Strikes: broadband spectral change. Report the ones no expected onset accounts for.
         // A strike adds energy; a damper release also changes the spectrum but lowers the level.
         if flux >= Tuning.strikeFluxDb && energyRise >= Tuning.strikeEnergyRiseDb {
-            if strikeArmed && time - lastStrike >= Tuning.onsetRefractory {
+            if strikeArmed && time - lastStrike >= Tuning.onsetRefractory && !duringClick {
                 pendingStrikes.append((time - Tuning.onsetTimeCorrection, time))
                 lastStrike = time
             }

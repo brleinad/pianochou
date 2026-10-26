@@ -12,6 +12,7 @@ final class SessionRecorder {
     private var samples: [Float] = []
     private var expectedChanges: [[String: Any]] = []
     private var events: [[String: Any]] = []
+    private var clicks: [Double] = []
 
     init(sampleRate: Double, expected: Set<Int>) {
         self.sampleRate = sampleRate
@@ -29,6 +30,11 @@ final class SessionRecorder {
 
     func noteExpected(_ pitches: Set<Int>) {
         expectedChanges.append(["time": duration, "midi": pitches.sorted()])
+    }
+
+    /// When a metronome click was predicted to reach the microphone (recording time).
+    func noteClick(at time: Double) {
+        clicks.append(time)
     }
 
     /// `offset` converts listener stream time to recording time (seconds).
@@ -57,6 +63,7 @@ final class SessionRecorder {
             "appVersion": PianoCore.version,
             "expectedChanges": expectedChanges,
             "events": events,
+            "clicks": clicks,
         ]
         try JSONSerialization.data(withJSONObject: info, options: [.prettyPrinted, .sortedKeys])
             .write(to: folder.appending(path: "\(name).json"))

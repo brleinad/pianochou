@@ -47,6 +47,11 @@ final class ListenProcessor: @unchecked Sendable {
     private var recorder: SessionRecorder?
     /// Listener stream time at which the recording started.
     private var recordingOffset = 0.0
+    /// Metronome: host time the first click reaches the microphone, seconds between clicks, and the
+    /// next click not yet passed to the listener.
+    private var firstClick: UInt64?
+    private var clickPeriod = 0.0
+    private var nextClick = 0
 
     init(ring: SampleRing, sampleRate: Double, inputLatency: Double, onUpdate: @escaping @Sendable (ListenUpdate) -> Void) {
         self.ring = ring
@@ -79,6 +84,16 @@ final class ListenProcessor: @unchecked Sendable {
             self.expected = pitches
             self.listener.expected = pitches
             self.recorder?.noteExpected(pitches)
+        }
+    }
+
+    /// Metronome clicks reach the microphone at `firstArrival` (host time) and every `period` seconds
+    /// after; nil when they stop.
+    func setClicks(firstArrival: UInt64?, period: Double) {
+        queue.async {
+            self.firstClick = firstArrival
+            self.clickPeriod = period
+            self.nextClick = 0
         }
     }
 
@@ -117,6 +132,7 @@ final class ListenProcessor: @unchecked Sendable {
         nextIndex = first + scratch.count
 
         recorder?.append(scratch)
+        announceClicks(until: nextIndex + Int(0.3 * sampleRate))
         let started = HostClock.now
         let events = listener.process(scratch)
         if let recorder { events.forEach { recorder.note($0, offset: recordingOffset) } }
@@ -151,5 +167,19 @@ final class ListenProcessor: @unchecked Sendable {
             audioSeconds /= 2
         }
         onUpdate(update)
+    }
+
+    /// Tells the listener about every click arriving before stream sample `end`.
+    private func announceClicks(until end: Int) {
+        guard let first = firstClick, clickPeriod > 0 else { return }
+        while true {
+            let host = first &+ UInt64(HostClock.ticks(seconds: Double(nextClick) * clickPeriod))
+            let sample = ring.sample(forHostTime: host, sampleRate: sampleRate)
+            guard sample < end else { return }
+            nextClick += 1
+            let time = Double(sample - streamStart) / sampleRate
+            listener.clickArrives(at: time)
+            recorder?.noteClick(at: time + recordingOffset)
+        }
     }
 }

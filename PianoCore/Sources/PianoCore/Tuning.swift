@@ -136,20 +136,21 @@ public enum Tuning {
     /// "Slower" after a run: about this much of the tempo, rounded down to a step.
     public static let slowerFactor: Double = 0.9
 
-    /// The click: a short sine burst well above `maxPartialHz` (and the 5 kHz strike band), so the
-    /// listener ignores it. Mixed into two real piano recordings at up to -3 dBFS, 8–10 kHz clicks added
-    /// no detections and hid none; low "woodblock" or noise clicks added many.
-    public static let metronomeClickHz: Double = 9000
-    /// The first beat of the bar: higher and louder.
-    public static let metronomeAccentHz: Double = 10000
-    /// Peak level of the accented click (full scale = 1), and the other beats relative to it.
-    public static let metronomeVolume: Double = 0.5
-    public static let metronomeOffbeatLevel: Double = 0.55
-    /// Length, fade-in and decay time constant of a click, in seconds. The fade-in keeps the burst's
-    /// energy out of the analysed band (a hard start splatters across all frequencies).
-    public static let metronomeClickSeconds: Double = 0.04
-    public static let metronomeClickAttack: Double = 0.0015
-    public static let metronomeClickDecay: Double = 0.006
+    /// Peak level of the metronome samples (full scale = 1). The phone's volume buttons do the rest.
+    public static let metronomeVolume: Double = 1.0
+
+    /// The listener knows when each click reaches the microphone. From `clickMaskBefore` before it
+    /// until `clickMaskAfter` after it (click length + one FFT window + margin), a note it hears only
+    /// counts if, once the click has died away, the note's partials stand at least `clickConfirmDb`
+    /// above where they were before the click. A strike adds 20–35 dB to a silent note and several dB to a
+    /// ringing one; a click passing over a ringing note leaves it where its decay takes it (lower). Strikes
+    /// during a click aren't reported as wrong notes.
+    public static let clickMaskBefore: Double = 0.03
+    public static let clickMaskAfter: Double = 0.25
+    public static let clickConfirmDb: Float = 3
+    /// Added to the audio session's output latency to predict when a click reaches the microphone
+    /// (speaker to mic, plus how input buffers are timestamped). Measured on the phone.
+    public static let clickArrivalOffset: Double = 0
 
     // MARK: Analyzer weights (M5)
 

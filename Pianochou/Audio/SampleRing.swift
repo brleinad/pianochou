@@ -45,6 +45,15 @@ final class SampleRing: @unchecked Sendable {
         return first
     }
 
+    /// Stream position of a clock time (mach host ticks), the inverse of `hostTime(forSample:)`.
+    func sample(forHostTime time: UInt64, sampleRate: Double) -> Int {
+        lock.lock()
+        let sample = anchorSample, host = anchorHostTime
+        lock.unlock()
+        let seconds = time >= host ? HostClock.seconds(time - host) : -HostClock.seconds(host - time)
+        return sample + Int((seconds * sampleRate).rounded())
+    }
+
     /// Clock time (mach host ticks) of a stream position.
     func hostTime(forSample index: Int, sampleRate: Double) -> UInt64 {
         lock.lock()

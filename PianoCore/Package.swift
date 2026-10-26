@@ -10,6 +10,7 @@ let package = Package(
     targets: [
         .target(
             name: "PianoCore",
+            resources: [.copy("Resources/Metronome")],
             // Audio analysis runs in real time; keep it optimized even in Debug app builds.
             swiftSettings: [.unsafeFlags(["-O"], .when(configuration: .debug))]
         ),

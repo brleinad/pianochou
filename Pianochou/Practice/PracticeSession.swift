@@ -61,6 +61,17 @@ final class PracticeSession {
         engine.onDetection = { [weak self] detection in self?.heard(detection) }
         await engine.start()
         engine.resetOnsets()
+        // Debug: `-metronome YES -recordSession 10` records 10 s of the microphone with the clicks on, and
+        // where the clicks were predicted to arrive, to Documents/recordings (for `Tuning.clickArrivalOffset`).
+        if UserDefaults.standard.bool(forKey: "metronome") { settings.metronome = true }
+        let record = UserDefaults.standard.double(forKey: "recordSession")
+        if record > 0 {
+            engine.startRecording()
+            Task { [engine] in
+                try? await Task.sleep(for: .seconds(record))
+                engine.stopRecording()
+            }
+        }
         updateClicks()
         updateExpected()
         ticker = Task { [weak self] in
@@ -168,8 +179,7 @@ final class PracticeSession {
         let wanted = settings.metronome && engine.state == .running ? Clicks(tempo: settings.tempo, time: time) : nil
         guard wanted != clicking else { return }
         clicking = wanted
-        guard let wanted else { return engine.setClicks(nil) }
-        engine.setClicks(Metronome.bar(wanted.time, tempo: wanted.tempo, sampleRate: engine.clickSampleRate))
+        engine.setClicks(wanted.map { ($0.time, $0.tempo) })
     }
 
     /// The same number of bars, straight after these.

@@ -2,6 +2,7 @@
 //
 //   swift run listen-replay rec.wav                 events (expected notes from rec.json)
 //   swift run listen-replay rec.wav --expect 60,64  override expected notes
+//   swift run listen-replay rec.wav --no-clicks     ignore the metronome clicks logged in rec.json
 //   swift run listen-replay rec.wav --trace 60 --from 1.2 --to 2.0   per-frame internals for one pitch
 import Foundation
 import PianoCore
@@ -12,7 +13,7 @@ func option(_ name: String) -> String? {
     return args[i + 1]
 }
 guard let path = args.first(where: { $0.hasSuffix(".wav") }) else {
-    print("usage: listen-replay <recording.wav> [--expect 60,64] [--trace 60 --from s --to s]")
+    print("usage: listen-replay <recording.wav> [--expect 60,64] [--no-clicks] [--trace 60 --from s --to s]")
     exit(2)
 }
 
@@ -61,6 +62,7 @@ let (samples, sampleRate) = try readWav(url)
 
 var changes: [(time: Double, midi: Set<Int>)] = []
 var phoneEvents: [[String: Any]] = []
+var clicks: [Double] = []
 let sidecar = url.deletingPathExtension().appendingPathExtension("json")
 if let data = try? Data(contentsOf: sidecar),
    let info = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
@@ -68,7 +70,9 @@ if let data = try? Data(contentsOf: sidecar),
         changes.append((change["time"] as? Double ?? 0, Set(change["midi"] as? [Int] ?? [])))
     }
     phoneEvents = info["events"] as? [[String: Any]] ?? []
+    clicks = info["clicks"] as? [Double] ?? []
 }
+if args.contains("--no-clicks") { clicks = [] }
 if let list = option("--expect") {
     changes = [(0, Set(list.split(separator: ",").compactMap { Int($0) }))]
 }
@@ -85,6 +89,8 @@ for change in changes {
 // MARK: Replay
 
 let listener = NoteListener(sampleRate: sampleRate)
+clicks.forEach(listener.clickArrives)
+if !clicks.isEmpty { print("  \(clicks.count) metronome clicks") }
 var nextChange = 0
 var events: [NoteListener.Event] = []
 let hop = Tuning.hopSize

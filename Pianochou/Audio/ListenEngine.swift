@@ -54,20 +54,28 @@ final class ListenEngine {
     private var player: AVAudioPlayerNode?
     private var clickFormat: AVAudioFormat?
 
-    /// Sample rate `setClicks` expects.
-    var clickSampleRate: Double { clickFormat?.sampleRate ?? 48_000 }
+    private let clickSound = try? Metronome.Sound.bundled()
 
-    /// Loops one bar of metronome clicks through the speaker while listening; nil stops them.
-    func setClicks(_ bar: [Float]?) {
-        guard let player, let format = clickFormat else { return }
+    /// Loops metronome clicks for `time` at `tempo` through the speaker while listening; nil stops them.
+    /// The processor learns when each click will reach the microphone, so they aren't heard as notes.
+    func setClicks(_ clicks: (time: TimeSignature, tempo: Double)?) {
+        guard let player, let format = clickFormat, let processor else { return }
         player.stop()
-        guard let bar, !bar.isEmpty,
+        processor.setClicks(firstArrival: nil, period: 0)
+        guard let clicks, let sound = clickSound else { return }
+        let bar = Metronome.bar(clicks.time, tempo: clicks.tempo, sampleRate: format.sampleRate, sound: sound)
+        guard !bar.isEmpty,
               let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(bar.count)),
               let channel = buffer.floatChannelData?[0] else { return }
         buffer.frameLength = AVAudioFrameCount(bar.count)
         bar.withUnsafeBufferPointer { channel.update(from: $0.baseAddress!, count: bar.count) }
         player.scheduleBuffer(buffer, at: nil, options: .loops)
-        player.play()
+        // Start at a known moment, so every click's arrival at the microphone is known.
+        let start = HostClock.now &+ UInt64(HostClock.ticks(seconds: 0.1))
+        player.play(at: AVAudioTime(hostTime: start))
+        let latency = AVAudioSession.sharedInstance().outputLatency + Tuning.clickArrivalOffset
+        processor.setClicks(firstArrival: start &+ UInt64(HostClock.ticks(seconds: latency)),
+                            period: Metronome.beatSeconds(clicks.time, tempo: clicks.tempo))
     }
 
     func start() async {
