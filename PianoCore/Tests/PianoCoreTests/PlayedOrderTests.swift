@@ -37,3 +37,45 @@ import Testing
         #expect(score.playedOrder == [0, 1, 0, 1, 0, 2])
     }
 }
+
+/// The bars to practise, laid out as played: a score whose measures follow the repeats.
+@Suite struct PracticeRangeTests {
+    /// repeat-endings: |: 1 2 [1. 3 :| [2. 4 | 5, played 1 2 3 1 2 4 5.
+    func numbers(_ from: Int, _ to: Int) throws -> [String] {
+        try Fixture.score("repeat-endings").playing(from: from, to: to).parts[0].measures.map(\.number)
+    }
+
+    @Test func wholeSongFollowsRepeats() throws {
+        let score = try Fixture.score("repeat-endings")
+        let played = score.playing(from: 0, to: 4)
+        #expect(played.parts[0].measures.map(\.number) == ["1", "2", "3", "1", "2", "4", "5"])
+        // Laid out one after another, with nothing left to repeat.
+        #expect(played.parts[0].measures.map(\.index) == Array(0..<7))
+        #expect(played.parts[0].measures.map(\.start) == (0..<7).map { Rational($0 * 4) })
+        #expect(played.parts[0].measures.allSatisfy { !$0.startRepeat && $0.endRepeatTimes == nil && $0.endingNumbers == nil })
+        #expect(played.playedOrder == Array(0..<7))
+        // The notes are the same as written.
+        #expect(played.parts[0].measures[3].events == score.parts[0].measures[0].events)
+    }
+
+    @Test func rangeInsideARepeatIsPlayedOnce() throws {
+        #expect(try numbers(0, 1) == ["1", "2"])
+        #expect(try numbers(0, 2) == ["1", "2", "3"])
+    }
+
+    @Test func rangeOverARepeatIncludesIt() throws {
+        #expect(try numbers(0, 3) == ["1", "2", "3", "1", "2", "4"])
+        #expect(try numbers(3, 4) == ["4", "5"])
+    }
+
+    @Test func rangeAcrossEndingsFollowsTheMusic() throws {
+        // From bar 2 to the 2nd ending: the repeat takes the music back to bar 1 on the way.
+        #expect(try numbers(1, 3) == ["2", "3", "1", "2", "4"])
+    }
+
+    @Test func withoutRepeatsItIsTheWrittenBars() throws {
+        let score = try Fixture.score("c-major-scale")
+        #expect(score.playing(from: 1, to: 1).parts[0].measures.map(\.number) == ["2"])
+        #expect(score.playing(from: 0, to: 1).parts[0].measures.map(\.number) == ["1", "2"])
+    }
+}
