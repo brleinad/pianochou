@@ -7,8 +7,9 @@ struct ScrollingStaffView: View {
     let engraving: Engraving
     var currentTime: Rational?
     var mark: (Engraving.NoteRef) -> NoteMark = { _ in .upcoming }
-    /// Points per staff space; nil fits the staff to the height available.
+    /// Points per staff space; nil fits the staff to the height available, up to `maximumSpace`.
     var space: CGFloat?
+    var maximumSpace: CGFloat = 14
     /// Keep the next notes in view, `Tuning.followPosition` of the way across.
     var follows = false
 
@@ -17,7 +18,7 @@ struct ScrollingStaffView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let unit = space ?? geometry.size.height / engraving.height
+            let unit = space ?? min(geometry.size.height / engraving.height, maximumSpace)
             let tile = Double(Self.tileWidth / unit)
             let count = max(1, Int((engraving.width / tile).rounded(.up)))
             ScrollView(.horizontal, showsIndicators: false) {

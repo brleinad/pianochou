@@ -1,7 +1,7 @@
 import PianoCore
 import SwiftUI
 
-/// On the music stand, landscape. No taps while playing: a run starts on the first note and ends on silence.
+/// On the music stand, either way up. No taps while playing: a run starts on the first note and ends on silence.
 struct PlayingView: View {
     @State private var session: PracticeSession
     @Environment(\.dismiss) private var dismiss
@@ -37,14 +37,12 @@ struct PlayingView: View {
         .toolbar(.hidden, for: .navigationBar)
         .statusBarHidden()
         .onAppear {
-            Orientation.lock(.landscape)
             UIApplication.shared.isIdleTimerDisabled = true
         }
         .task { await session.start() }
         .onDisappear {
             session.stop()
             UIApplication.shared.isIdleTimerDisabled = false
-            Orientation.lock(.portrait)
         }
     }
 
@@ -53,7 +51,9 @@ struct PlayingView: View {
         HStack(spacing: 4) {
             Text(session.barsLabel)
                 .font(Theme.text(16).weight(.semibold))
-            Spacer()
+                .lineLimit(1)
+                .fixedSize()
+            Spacer(minLength: 8)
             listening
                 .padding(.trailing, 12)
             Button(action: session.toggleMetronome) {
@@ -141,51 +141,63 @@ struct BetweenRunsView: View {
     let next: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 56) {
-            VStack(alignment: .leading) {
-                Text("\(result.good)/\(result.total)")
-                    .font(Theme.text(96).weight(.light))
-                    .kerning(-3)
-                    .foregroundStyle(Theme.ink)
-                    .padding(.top, 24)
-                    .minimumScaleFactor(0.5)
-                    .lineLimit(1)
-                Spacer()
-                NoteStrip(cells: result.strip)
-                    .accessibilityElement()
-                .accessibilityLabel("\(result.good) of \(result.total) notes right")
+        // Side by side when wide, one above the other when tall.
+        GeometryReader { geometry in
+            let layout = geometry.size.width > geometry.size.height
+                ? AnyLayout(HStackLayout(alignment: .top, spacing: 56)) : AnyLayout(VStackLayout(alignment: .leading, spacing: 32))
+            layout {
+                score
+                details
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            VStack(alignment: .leading, spacing: 10) {
-                if let worst = result.worst {
-                    Text("Bar \(worst.measureNumber)")
-                        .font(Theme.text(15).weight(.semibold))
-                        .foregroundStyle(Theme.fix)
-                    Text(worst.summary)
-                        .font(Theme.text(28).weight(.medium))
-                        .foregroundStyle(Theme.ink)
-                } else {
-                    Text("Clean")
-                        .font(Theme.text(28).weight(.medium))
-                        .foregroundStyle(Theme.now)
-                }
-                Spacer()
-                HStack(spacing: 12) {
-                    Button("Slower", action: slower)
-                        .buttonStyle(PillStyle(filled: true))
-                    Button("Next", action: next)
-                        .buttonStyle(PillStyle(filled: false))
-                        .disabled(!hasNext)
-                        .opacity(hasNext ? 1 : 0.4)
-                }
-            }
-            .padding(.top, 24)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 56)
         .padding(.top, 8)
         .padding(.bottom, 36)
+    }
+
+    private var score: some View {
+        VStack(alignment: .leading) {
+            Text("\(result.good)/\(result.total)")
+                .font(Theme.text(96).weight(.light))
+                .kerning(-3)
+                .foregroundStyle(Theme.ink)
+                .padding(.top, 24)
+                .minimumScaleFactor(0.5)
+                .lineLimit(1)
+            Spacer()
+            NoteStrip(cells: result.strip)
+                .accessibilityElement()
+                .accessibilityLabel("\(result.good) of \(result.total) notes right")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let worst = result.worst {
+                Text("Bar \(worst.measureNumber)")
+                    .font(Theme.text(15).weight(.semibold))
+                    .foregroundStyle(Theme.fix)
+                Text(worst.summary)
+                    .font(Theme.text(28).weight(.medium))
+                    .foregroundStyle(Theme.ink)
+            } else {
+                Text("Clean")
+                    .font(Theme.text(28).weight(.medium))
+                    .foregroundStyle(Theme.now)
+            }
+            Spacer()
+            HStack(spacing: 12) {
+                Button("Slower", action: slower)
+                    .buttonStyle(PillStyle(filled: true))
+                Button("Next", action: next)
+                    .buttonStyle(PillStyle(filled: false))
+                    .disabled(!hasNext)
+                    .opacity(hasNext ? 1 : 0.4)
+            }
+        }
+        .padding(.top, 24)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
