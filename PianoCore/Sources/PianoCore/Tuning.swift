@@ -120,6 +120,11 @@ public enum Tuning {
     /// A run ends when nothing has been played for this long after the next note was due.
     public static let silenceGrace: Double = 1.5
 
+    // MARK: Playing screen
+
+    /// Bars on screen at once while playing; the window moves on bar by bar.
+    public static let playingWindowBars = 2
+
     // MARK: Tempo and metronome
 
     /// Practice tempos, in quarter notes per minute, and the step of the − / + buttons.

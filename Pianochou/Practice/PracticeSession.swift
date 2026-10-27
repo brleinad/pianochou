@@ -2,8 +2,10 @@ import Foundation
 import Observation
 import PianoCore
 
-/// One sitting at the piano with a snippet: listens, follows each run, keeps the last result.
-/// A run starts on its first note and ends on silence; between runs, playing the first note again starts the next.
+/// One sitting at the piano with some bars (up to the whole song): listens, follows each run, keeps the last
+/// result. A run starts on its first note and ends on silence; between runs, playing the first note again
+/// starts the next. The bars are played as written, repeats included (`Score.playing(from:to:)`), and the
+/// staff shows a window of a few bars that moves along with the player.
 @MainActor
 @Observable
 final class PracticeSession {
@@ -16,9 +18,14 @@ final class PracticeSession {
     }
 
     let score: Score
+    /// The chosen bars as played, one after another.
+    private(set) var played: Score
     let engine = ListenEngine()
     private(set) var settings: PracticeSettings
+    /// The bars on screen.
     private(set) var engraving: Engraving
+    /// First bar (index into `played`) of the window on screen.
+    private var windowStart = 0
     private(set) var snippet: Snippet
     private(set) var follower: RunFollower
     private(set) var phase: Phase = .ready
@@ -35,10 +42,30 @@ final class PracticeSession {
     init(score: Score, settings: PracticeSettings) {
         self.score = score
         self.settings = settings
-        let snippet = Snippet(score: score, measures: settings.bars, hands: settings.handsValue)
+        let played = score.playing(from: settings.firstBar, to: settings.lastBar)
+        self.played = played
+        let snippet = Snippet(score: played, measures: 0...(played.parts[0].measures.count - 1), hands: settings.handsValue)
         self.snippet = snippet
-        engraving = Engraver.engrave(score, measures: settings.firstBar..<(settings.lastBar + 1))
+        engraving = Self.window(played, from: 0)
         follower = RunFollower(snippet: snippet, tempo: settings.tempo, mode: .drill)
+    }
+
+    /// `Tuning.playingWindowBars` bars from `start`, kept full near the end.
+    private static func window(_ played: Score, from start: Int) -> Engraving {
+        let count = played.parts[0].measures.count
+        let first = max(0, min(start, count - Tuning.playingWindowBars))
+        return Engraver.engrave(played, measures: first..<min(count, first + Tuning.playingWindowBars))
+    }
+
+    /// Moves the window on when the bar to play next isn't its first bar any more (never back, during a run).
+    private func followWindow() {
+        let count = played.parts[0].measures.count
+        guard count > Tuning.playingWindowBars else { return }
+        let next = follower.currentTime.flatMap { t in snippet.chords.first { $0.time == t }?.measure } ?? 0
+        let start = phase == .ready ? 0 : next
+        guard start != windowStart else { return }
+        windowStart = start
+        engraving = Self.window(played, from: start)
     }
 
     var measureCount: Int { score.parts[0].measures.count }
@@ -116,12 +143,14 @@ final class PracticeSession {
         revision += 1
         if follower.state == .finished { endRun(at: time) }
         updateExpected()
+        followWindow()
     }
 
     private func tick() {
         guard follower.state == .running else { return }
         follower.tick(now: engine.latest.streamTime)
         if follower.state == .finished { endRun(at: engine.latest.streamTime) }
+        followWindow()
     }
 
     private func endRun(at time: Double) {
@@ -131,6 +160,9 @@ final class PracticeSession {
         phase = .result
         follower = RunFollower(snippet: snippet, tempo: settings.tempo, mode: .drill)
         updateExpected()
+        // The next run starts from the top.
+        windowStart = 0
+        engraving = Self.window(played, from: 0)
     }
 
     private func updateExpected() {
@@ -175,7 +207,7 @@ final class PracticeSession {
     /// Clicks on every beat of the snippet's time signature while the metronome is on. Restarted only
     /// when the tempo changes, so the beat doesn't jump.
     private func updateClicks() {
-        let time = score.parts[0].measures[settings.firstBar].time
+        let time = played.parts[0].measures[0].time
         let wanted = settings.metronome && engine.state == .running ? Clicks(tempo: settings.tempo, time: time) : nil
         guard wanted != clicking else { return }
         clicking = wanted
@@ -198,8 +230,10 @@ final class PracticeSession {
 
     private func apply(_ new: PracticeSettings) {
         settings = new
-        snippet = Snippet(score: score, measures: new.bars, hands: new.handsValue)
-        engraving = Engraver.engrave(score, measures: new.firstBar..<(new.lastBar + 1))
+        played = score.playing(from: new.firstBar, to: new.lastBar)
+        snippet = Snippet(score: played, measures: 0...(played.parts[0].measures.count - 1), hands: new.handsValue)
+        windowStart = 0
+        engraving = Self.window(played, from: 0)
         follower = RunFollower(snippet: snippet, tempo: new.tempo, mode: .drill)
         finished = nil
         phase = .ready
@@ -237,7 +271,7 @@ final class PracticeSession {
 
     /// How a note on the staff should look: the other hand is faded, done notes graded.
     func mark(_ ref: Engraving.NoteRef) -> NoteMark {
-        let event = score.parts[0].measures[ref.measure].events[ref.event]
+        let event = played.parts[0].measures[ref.measure].events[ref.event]
         guard settings.handsValue.includes(staff: event.staff) else { return .played }
         let source = phase == .result ? finished : follower
         switch source?.outcome(for: ref) {

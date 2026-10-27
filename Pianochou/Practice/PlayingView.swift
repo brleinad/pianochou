@@ -151,14 +151,8 @@ struct BetweenRunsView: View {
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
                 Spacer()
-                HStack(spacing: 3) {
-                    ForEach(Array(result.strip.enumerated()), id: \.offset) { _, good in
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(good ? Theme.ink : Theme.fix)
-                            .frame(height: 22)
-                    }
-                }
-                .accessibilityElement()
+                NoteStrip(cells: result.strip)
+                    .accessibilityElement()
                 .accessibilityLabel("\(result.good) of \(result.total) notes right")
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -192,5 +186,50 @@ struct BetweenRunsView: View {
         .padding(.horizontal, 56)
         .padding(.top, 8)
         .padding(.bottom, 36)
+    }
+}
+
+/// One cell per note, ink when it went well, orange when not. A few notes stretch across one row; many
+/// (a long run) shrink into rows of small cells that fit a fixed block.
+struct NoteStrip: View {
+    let cells: [Bool]
+    private static let rowHeight: CGFloat = 22
+    private static let blockHeight: CGFloat = 96
+
+    var body: some View {
+        GeometryReader { geometry in
+            Canvas { context, size in
+                let (columns, pitch, cell) = Self.grid(count: cells.count, in: size)
+                for (i, good) in cells.enumerated() {
+                    let rect = CGRect(x: CGFloat(i % columns) * pitch.width, y: CGFloat(i / columns) * pitch.height,
+                                      width: cell.width, height: cell.height)
+                    context.fill(Path(roundedRect: rect, cornerRadius: min(3, cell.width / 3)), with: .color(good ? Theme.ink : Theme.fix))
+                }
+            }
+            .frame(height: Self.fitsOneRow(cells.count, width: geometry.size.width) ? Self.rowHeight : Self.blockHeight)
+        }
+        .frame(height: Self.blockHeight, alignment: .bottom)
+    }
+
+    static func fitsOneRow(_ count: Int, width: CGFloat) -> Bool {
+        (width - 3 * CGFloat(count - 1)) / CGFloat(max(1, count)) >= 8
+    }
+
+    /// Columns, the step from one cell to the next, and the cell size.
+    static func grid(count: Int, in size: CGSize) -> (Int, CGSize, CGSize) {
+        let count = max(1, count)
+        if fitsOneRow(count, width: size.width) {
+            let width = (size.width - 3 * CGFloat(count - 1)) / CGFloat(count)
+            return (count, CGSize(width: width + 3, height: 0), CGSize(width: width, height: rowHeight))
+        }
+        // The largest square step at which every cell fits the block.
+        var step = rowHeight
+        while step > 2 {
+            let columns = max(1, Int(size.width / step))
+            if CGFloat((count + columns - 1) / columns) * step <= size.height { break }
+            step -= 0.5
+        }
+        let cell = max(1, step * 0.75)
+        return (max(1, Int(size.width / step)), CGSize(width: step, height: step), CGSize(width: cell, height: cell))
     }
 }

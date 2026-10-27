@@ -40,27 +40,34 @@ struct SetupView: View {
 
     private func form(_ score: Score, _ current: PracticeSettings) -> some View {
         let measures = score.parts[0].measures
-        let length = current.lastBar - current.firstBar + 1
+        let last = measures.count - 1
         return VStack(alignment: .leading, spacing: 28) {
             Text(entry.title)
                 .font(Theme.text(32, relativeTo: .title))
                 .foregroundStyle(Theme.ink)
                 .lineLimit(2)
 
-            StaffView(engraving: Engraver.engrave(score, measures: current.firstBar..<(current.lastBar + 1)), maximumSpace: 9)
+            // The start of the chosen bars.
+            StaffView(engraving: Engraver.engrave(score, measures: current.firstBar..<min(current.lastBar + 1, current.firstBar + Tuning.playingWindowBars)),
+                      maximumSpace: 9)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             NumberStepper(label: "From bar", value: measures[current.firstBar].number,
-                          canDecrease: current.firstBar > 0, canIncrease: current.firstBar < measures.count - 1) { step in
+                          canDecrease: current.firstBar > 0, canIncrease: current.firstBar < last) { step in
                 update { s in
-                    s.firstBar = min(max(0, s.firstBar + step), measures.count - 1)
-                    s.lastBar = min(s.firstBar + length - 1, measures.count - 1)
+                    s.firstBar = min(max(0, s.firstBar + step), last)
+                    s.lastBar = max(s.lastBar, s.firstBar)
                 }
             }
-            NumberStepper(label: "Bars", value: "\(length)",
-                          canDecrease: length > 1, canIncrease: length < 4 && current.lastBar < measures.count - 1) { step in
-                update { s in s.lastBar = min(max(s.firstBar, s.lastBar + step), measures.count - 1) }
+            NumberStepper(label: "To bar", value: measures[current.lastBar].number,
+                          canDecrease: current.lastBar > current.firstBar, canIncrease: current.lastBar < last) { step in
+                update { s in s.lastBar = min(max(s.firstBar, s.lastBar + step), last) }
             }
+            Button("Whole song") { update { s in s.firstBar = 0; s.lastBar = last } }
+                .font(Theme.text(15))
+                .foregroundStyle(current.firstBar == 0 && current.lastBar == last ? Theme.muted : Theme.now)
+                .disabled(current.firstBar == 0 && current.lastBar == last)
+                .frame(minHeight: 44)
             if score.parts[0].staves > 1 {
                 Picker("Hands", selection: Binding(get: { current.handsValue }, set: { hands in update { $0.hands = hands.rawValue } })) {
                     Text("Right").tag(Hands.right)
@@ -125,6 +132,7 @@ struct NumberStepper: View {
                 .overlay(Circle().stroke(Theme.hairline))
                 .contentShape(Circle())
         }
+        .buttonRepeatBehavior(.enabled)
         .foregroundStyle(enabled ? Theme.ink : Theme.hairline)
         .disabled(!enabled)
     }
