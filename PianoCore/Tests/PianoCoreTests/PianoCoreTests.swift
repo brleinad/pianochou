@@ -6,6 +6,5 @@ import Testing
 }
 
 @Test func tuningRangesAreSane() {
-    #expect(Tuning.sessionMinutes.lowerBound > 0)
-    #expect(Tuning.snippetsPerSession.lowerBound >= 1)
+    #expect(Tuning.tempoRange.lowerBound > 0 && Tuning.tempoStep > 0)
 }

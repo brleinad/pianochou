@@ -5,14 +5,6 @@ import Foundation
 /// Values are starting guesses until tested on a real piano; change them here, nowhere else.
 public enum Tuning {
 
-    // MARK: Session
-
-    /// Target length of a daily practice session, in minutes (CLAUDE.md: ~15–25).
-    public static let sessionMinutes: ClosedRange<Double> = 15...25
-
-    /// Snippets alternated in one session, not counting the opening review.
-    public static let snippetsPerSession: ClosedRange<Int> = 2...3
-
     // MARK: Listening (M2)
 
     /// Concert pitch of A4. Home pianos are often a little flat; the partial tolerance absorbs ~±40 cents.
@@ -151,8 +143,4 @@ public enum Tuning {
     /// Added to the audio session's output latency to predict when a click reaches the microphone
     /// (speaker to mic, plus how input buffers are timestamped). Measured on the phone.
     public static let clickArrivalOffset: Double = 0
-
-    // MARK: Analyzer weights (M5)
-
-    // MARK: Tempo ladder and hint fading (M7)
 }
