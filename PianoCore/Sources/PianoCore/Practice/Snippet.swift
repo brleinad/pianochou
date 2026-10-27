@@ -20,6 +20,8 @@ public struct Snippet: Sendable {
         public var refs: [Engraving.NoteRef]
         public var staff: Int
         public var fingering: Int?
+        /// How long to hold it: its written length, plus any notes tied on to it.
+        public var duration: Rational = .zero
     }
 
     public struct Chord: Equatable, Sendable {
@@ -70,10 +72,14 @@ public struct Snippet: Sendable {
                 pendingGraces = []
                 for (n, note) in struck {
                     let ref = Engraving.NoteRef(measure: m, event: e, note: n)
+                    let held = Self.heldLength(midi: note.pitch.midi, tied: note.tie.start, in: event, measure: m,
+                                               measures: allMeasures, upTo: range.upperBound)
                     if let same = chords[chords.count - 1].notes.firstIndex(where: { $0.midi == note.pitch.midi }) {
                         chords[chords.count - 1].notes[same].refs.append(ref)
+                        chords[chords.count - 1].notes[same].duration = max(chords[chords.count - 1].notes[same].duration, held)
                     } else {
-                        chords[chords.count - 1].notes.append(Note(midi: note.pitch.midi, refs: [ref], staff: event.staff, fingering: note.fingering))
+                        chords[chords.count - 1].notes.append(Note(midi: note.pitch.midi, refs: [ref], staff: event.staff,
+                                                                   fingering: note.fingering, duration: held))
                     }
                 }
             }
@@ -86,5 +92,26 @@ public struct Snippet: Sendable {
             chords[i].duration = (i + 1 < chords.count ? chords[i + 1].time : end) - chords[i].time
         }
         self.chords = chords
+    }
+
+    /// A note's written length, plus the notes tied on to it (same pitch and staff, later in the bars).
+    static func heldLength(midi: Int, tied: Bool, in event: Event, measure m: Int, measures: [Measure], upTo last: Int) -> Rational {
+        var length = event.duration
+        var end = measures[m].start + event.onset + event.duration
+        var continues = tied
+        while continues {
+            continues = false
+            for k in m...last {
+                let start = measures[k].start
+                let candidates = measures[k].events.filter { $0.staff == event.staff && start + $0.onset == end }
+                guard let next = candidates.first(where: { e in e.notes.contains { $0.pitch.midi == midi && $0.tie.stop } }),
+                      let note = next.notes.first(where: { $0.pitch.midi == midi }) else { continue }
+                length = length + next.duration
+                end = end + next.duration
+                continues = note.tie.start
+                break
+            }
+        }
+        return length
     }
 }

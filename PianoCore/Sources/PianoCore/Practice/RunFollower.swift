@@ -67,6 +67,19 @@ public final class RunFollower {
         state == .finished || current >= snippet.chords.count ? nil : snippet.chords[current].time
     }
 
+    /// How far the line showing the beat has moved, as score time: from the last chord played, at the
+    /// tempo, stopping at the next chord until that is played. On the first chord until the run starts;
+    /// nil once it's over. `now` is on the same clock as `hear`.
+    public func playhead(at now: Double) -> Rational? {
+        guard state != .finished, let first = snippet.chords.first else { return nil }
+        guard state == .running, let k = (0...min(current, snippet.chords.count - 1)).last(where: { chordState[$0].firstHit != nil }),
+              let hit = chordState[k].firstHit else { return first.time }
+        let waitAt = (k + 1..<snippet.chords.count).first { chordState[$0].firstHit == nil }.map { snippet.chords[$0].time }
+        let elapsed = max(0, now - hit) / secondsPerQuarter
+        let moved = snippet.chords[k].time + Rational(Int((elapsed * 960).rounded()), 960)
+        return waitAt.map { min(moved, $0) } ?? moved
+    }
+
     /// Fraction of chords done.
     public var progress: Double {
         snippet.chords.isEmpty ? 1 : Double(chordState.filter(\.closed).count) / Double(snippet.chords.count)

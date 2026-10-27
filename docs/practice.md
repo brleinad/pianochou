@@ -19,3 +19,9 @@ Grace notes are optional. Imported scores are copied to Documents/scores and nev
 
 Simulator checks without a piano: launch with
 `-openScore <file> -autoStart YES -simulateRun YES [-simulatePause 6]`.
+
+Holding notes: each note to play has a faint bar under it as long as it should be held (`HoldBars`, from
+`Snippet.Note.duration`, ties included). A thin line (`RunFollower.playhead`) moves through the music at the
+tempo from the last chord played and fills the bars; it waits at the next note until that is played. The
+right note at the wrong time gets a small tick before (early) or after (late) it; only wrong or missed notes
+turn orange. Every screen follows the phone's rotation.

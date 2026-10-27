@@ -23,6 +23,8 @@ final class PracticeSession {
     private(set) var settings: PracticeSettings
     /// All the bars, laid out once; the view scrolls through them.
     private(set) var engraving: Engraving
+    /// How long to hold each note to play, drawn under the staff.
+    private(set) var holdBars: [HoldBar] = []
     private(set) var snippet: Snippet
     private(set) var follower: RunFollower
     private(set) var phase: Phase = .ready
@@ -43,8 +45,10 @@ final class PracticeSession {
         self.played = played
         let snippet = Snippet(score: played, measures: 0...(played.parts[0].measures.count - 1), hands: settings.handsValue)
         self.snippet = snippet
-        engraving = Engraver.engrave(played, measures: 0..<played.parts[0].measures.count)
+        let engraving = Engraver.engrave(played, measures: 0..<played.parts[0].measures.count)
+        self.engraving = engraving
         follower = RunFollower(snippet: snippet, tempo: settings.tempo, mode: .drill)
+        holdBars = HoldBars.make(engraving: engraving, snippet: snippet)
     }
 
     var measureCount: Int { score.parts[0].measures.count }
@@ -207,6 +211,7 @@ final class PracticeSession {
         played = score.playing(from: new.firstBar, to: new.lastBar)
         snippet = Snippet(score: played, measures: 0...(played.parts[0].measures.count - 1), hands: new.handsValue)
         engraving = Engraver.engrave(played, measures: 0..<played.parts[0].measures.count)
+        holdBars = HoldBars.make(engraving: engraving, snippet: snippet)
         follower = RunFollower(snippet: snippet, tempo: new.tempo, mode: .drill)
         finished = nil
         phase = .ready
@@ -255,6 +260,13 @@ final class PracticeSession {
         case .bad: return .mistake
         case nil: return .upcoming
         }
+    }
+
+    /// Where the line showing the beat has got to at `date`; nil on the result.
+    func playhead(at date: Date) -> Rational? {
+        guard phase != .result else { return nil }
+        // The detection clock, moved on by the time since its last update.
+        return follower.playhead(at: engine.latest.streamTime + date.timeIntervalSince(engine.latestArrived))
     }
 
     /// The highlighted beat: the next chord while playing, the first chord when ready, none on the result.

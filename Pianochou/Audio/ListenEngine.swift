@@ -16,6 +16,8 @@ final class ListenEngine {
     private(set) var ioBufferDuration: Double = 0
     private(set) var inputLatency: Double = 0
     private(set) var latest = ListenUpdate()
+    /// When `latest` arrived, to tell the stream time between updates.
+    private(set) var latestArrived = Date()
 
     /// Called on the main actor for every detection.
     var onDetection: ((ListenUpdate.Detection) -> Void)?
@@ -143,6 +145,7 @@ final class ListenEngine {
 
     private func receive(_ update: ListenUpdate) {
         latest = update
+        latestArrived = .now
         update.detections.forEach { onDetection?($0) }
     }
 
