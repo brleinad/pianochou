@@ -47,10 +47,8 @@ struct SetupView: View {
                 .foregroundStyle(Theme.ink)
                 .lineLimit(2)
 
-            // The start of the chosen bars.
-            StaffView(engraving: Engraver.engrave(score, measures: current.firstBar..<min(current.lastBar + 1, current.firstBar + Tuning.playingWindowBars)),
-                      maximumSpace: 9)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            // The chosen bars, scrolling sideways.
+            ScrollingStaffView(engraving: Engraver.engrave(score, measures: current.firstBar..<(current.lastBar + 1)), space: 8)
 
             NumberStepper(label: "From bar", value: measures[current.firstBar].number,
                           canDecrease: current.firstBar > 0, canIncrease: current.firstBar < last) { step in

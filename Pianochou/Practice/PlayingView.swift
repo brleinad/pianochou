@@ -96,7 +96,7 @@ struct PlayingView: View {
     private var staff: some View {
         let _ = session.revision // redraw marks on every heard note
         return VStack(spacing: 12) {
-            StaffView(engraving: session.engraving, currentTime: session.currentTime, mark: session.mark)
+            ScrollingStaffView(engraving: session.engraving, currentTime: session.currentTime, mark: session.mark, follows: true)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             GeometryReader { geometry in

@@ -2,8 +2,9 @@
 
 Home → pick a score (or Add a score: `.musicxml`, `.xml`, `.mxl`) → choose From and To bars (or Whole song),
 hands, tempo → Start. The bars are played with their repeats and endings (`Score.playing(from:to:)`): a
-range inside a repeat is played once, a range over one includes it. While playing, the staff shows
-`Tuning.playingWindowBars` bars and moves on bar by bar.
+range inside a repeat is played once, a range over one includes it. The Setup preview and the playing
+screen show all the bars in a sideways scroll (`ScrollingStaffView`, drawn in tiles); while playing it
+follows the next notes, keeping them `Tuning.followPosition` of the way across.
 
 - **Playing** (landscape, no taps): the first chord is highlighted; the run starts when you play it. The staff
   follows chord by chord: done notes fade, mistakes turn orange, the other hand is faded. A run ends on

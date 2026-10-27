@@ -122,8 +122,8 @@ public enum Tuning {
 
     // MARK: Playing screen
 
-    /// Bars on screen at once while playing; the window moves on bar by bar.
-    public static let playingWindowBars = 2
+    /// While playing, the staff scrolls to keep the next notes this fraction of the way across the screen.
+    public static let followPosition: Double = 0.3
 
     // MARK: Tempo and metronome
 

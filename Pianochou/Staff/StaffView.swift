@@ -19,22 +19,45 @@ struct StaffView: View {
     var showsCounts = true
     /// Largest staff space in points, so a one-bar window isn't blown up to the full width.
     var maximumSpace: CGFloat = .infinity
+    /// Draw only this stretch of the engraving (in staff spaces), at `space` points per staff space:
+    /// one tile of a `ScrollingStaffView`. Nil: all of it, scaled to fit the width.
+    var tile: (range: ClosedRange<Double>, space: CGFloat)?
 
     var body: some View {
+        if let tile {
+            canvas(tile)
+        } else {
+            canvas(nil)
+                .aspectRatio(engraving.width / engraving.height, contentMode: .fit)
+                .frame(maxWidth: engraving.width * maximumSpace)
+                .accessibilityElement()
+                .accessibilityLabel("Staff")
+        }
+    }
+
+    private func canvas(_ tile: (range: ClosedRange<Double>, space: CGFloat)?) -> some View {
         Canvas { context, size in
-            let unit = size.width / engraving.width
-            if let currentTime, let x = engraving.x(at: currentTime) {
+            let unit = tile?.space ?? size.width / engraving.width
+            let shown = tile?.range ?? 0...engraving.width
+            context.translateBy(x: -shown.lowerBound * unit, y: 0)
+            if let currentTime, let x = engraving.x(at: currentTime), shown.overlaps(x - 1.8...x + 1.8) {
                 let band = CGRect(x: (x - 1.8) * unit, y: 0, width: 3.6 * unit, height: size.height)
                 context.fill(Path(roundedRect: band, cornerRadius: 0.8 * unit), with: .color(Theme.band))
             }
-            for item in engraving.items {
+            for item in engraving.items where tile == nil || Self.extent(item).overlaps(shown) {
                 draw(item, in: &context, unit: unit)
             }
         }
-        .aspectRatio(engraving.width / engraving.height, contentMode: .fit)
-        .frame(maxWidth: engraving.width * maximumSpace)
-        .accessibilityElement()
-        .accessibilityLabel("Staff")
+    }
+
+    /// Roughly how far across an item reaches, in staff spaces (generous: glyphs are at most ~4 wide).
+    static func extent(_ item: Engraving.Item) -> ClosedRange<Double> {
+        switch item.shape {
+        case let .glyph(_, at, scale): return (at.x - 1)...(at.x + 4 * scale)
+        case let .line(from, to, _), let .beam(from, to, _), let .tie(from, to, _):
+            return (min(from.x, to.x) - 1)...(max(from.x, to.x) + 1)
+        case let .text(_, at, size): return (at.x - 2 * size)...(at.x + 2 * size)
+        }
     }
 
     private func draw(_ item: Engraving.Item, in context: inout GraphicsContext, unit: CGFloat) {

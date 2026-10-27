@@ -4,8 +4,7 @@ import PianoCore
 
 /// One sitting at the piano with some bars (up to the whole song): listens, follows each run, keeps the last
 /// result. A run starts on its first note and ends on silence; between runs, playing the first note again
-/// starts the next. The bars are played as written, repeats included (`Score.playing(from:to:)`), and the
-/// staff shows a window of a few bars that moves along with the player.
+/// starts the next. The bars are played as written, repeats included (`Score.playing(from:to:)`).
 @MainActor
 @Observable
 final class PracticeSession {
@@ -22,10 +21,8 @@ final class PracticeSession {
     private(set) var played: Score
     let engine = ListenEngine()
     private(set) var settings: PracticeSettings
-    /// The bars on screen.
+    /// All the bars, laid out once; the view scrolls through them.
     private(set) var engraving: Engraving
-    /// First bar (index into `played`) of the window on screen.
-    private var windowStart = 0
     private(set) var snippet: Snippet
     private(set) var follower: RunFollower
     private(set) var phase: Phase = .ready
@@ -46,26 +43,8 @@ final class PracticeSession {
         self.played = played
         let snippet = Snippet(score: played, measures: 0...(played.parts[0].measures.count - 1), hands: settings.handsValue)
         self.snippet = snippet
-        engraving = Self.window(played, from: 0)
+        engraving = Engraver.engrave(played, measures: 0..<played.parts[0].measures.count)
         follower = RunFollower(snippet: snippet, tempo: settings.tempo, mode: .drill)
-    }
-
-    /// `Tuning.playingWindowBars` bars from `start`, kept full near the end.
-    private static func window(_ played: Score, from start: Int) -> Engraving {
-        let count = played.parts[0].measures.count
-        let first = max(0, min(start, count - Tuning.playingWindowBars))
-        return Engraver.engrave(played, measures: first..<min(count, first + Tuning.playingWindowBars))
-    }
-
-    /// Moves the window on when the bar to play next isn't its first bar any more (never back, during a run).
-    private func followWindow() {
-        let count = played.parts[0].measures.count
-        guard count > Tuning.playingWindowBars else { return }
-        let next = follower.currentTime.flatMap { t in snippet.chords.first { $0.time == t }?.measure } ?? 0
-        let start = phase == .ready ? 0 : next
-        guard start != windowStart else { return }
-        windowStart = start
-        engraving = Self.window(played, from: start)
     }
 
     var measureCount: Int { score.parts[0].measures.count }
@@ -143,14 +122,12 @@ final class PracticeSession {
         revision += 1
         if follower.state == .finished { endRun(at: time) }
         updateExpected()
-        followWindow()
     }
 
     private func tick() {
         guard follower.state == .running else { return }
         follower.tick(now: engine.latest.streamTime)
         if follower.state == .finished { endRun(at: engine.latest.streamTime) }
-        followWindow()
     }
 
     private func endRun(at time: Double) {
@@ -160,9 +137,6 @@ final class PracticeSession {
         phase = .result
         follower = RunFollower(snippet: snippet, tempo: settings.tempo, mode: .drill)
         updateExpected()
-        // The next run starts from the top.
-        windowStart = 0
-        engraving = Self.window(played, from: 0)
     }
 
     private func updateExpected() {
@@ -232,8 +206,7 @@ final class PracticeSession {
         settings = new
         played = score.playing(from: new.firstBar, to: new.lastBar)
         snippet = Snippet(score: played, measures: 0...(played.parts[0].measures.count - 1), hands: new.handsValue)
-        windowStart = 0
-        engraving = Self.window(played, from: 0)
+        engraving = Engraver.engrave(played, measures: 0..<played.parts[0].measures.count)
         follower = RunFollower(snippet: snippet, tempo: new.tempo, mode: .drill)
         finished = nil
         phase = .ready
@@ -248,6 +221,7 @@ final class PracticeSession {
     /// Debug (`-simulateRun YES`): plays the snippet without a piano, skipping one note and rushing
     /// another, stopping halfway for a screenshot of the playing screen, then showing the result.
     private func simulateRun() async {
+        try? await Task.sleep(for: .seconds(1))   // let the screen turn to landscape first
         let spq = 60 / settings.tempo
         var events: [(midi: Int, time: Double)] = []
         for (i, chord) in snippet.chords.enumerated() {
