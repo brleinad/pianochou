@@ -16,9 +16,10 @@ public final class RunFollower {
         case waiting, running, finished
     }
 
-    /// For marking the staff while playing: a note (or event) that went well or not.
+    /// For marking the staff while playing: a note (or event) that went well, came early or late (drills
+    /// only; the right note at the wrong time), or went wrong (a wrong note or a missed one).
     public enum Outcome: Sendable {
-        case good, bad
+        case good, early, late, bad
     }
 
     public let snippet: Snippet
@@ -177,15 +178,21 @@ public final class RunFollower {
 
     /// How a note (ref with `note`) or a whole event (ref without) went; nil while it is still to come.
     public func outcome(for ref: Engraving.NoteRef) -> Outcome? {
-        var any = false, bad = false
+        var worst: Outcome?
         for (i, chord) in snippet.chords.enumerated() {
             for note in chord.notes where note.refs.contains(where: { ref.note == nil ? $0.eventRef == ref : $0 == ref }) {
                 guard let grade = grade(note, chord: i) else { continue }
-                any = true
-                if grade.grade != .right || (mode == .drill && grade.timing != .onTime) { bad = true }
+                let outcome: Outcome = switch (grade.grade, mode == .drill ? grade.timing : .onTime) {
+                case (.right, .early?): .early
+                case (.right, .late?): .late
+                case (.right, _): .good
+                default: .bad
+                }
+                // A wrong note outweighs a timing slip, which outweighs a good note.
+                if worst == nil || outcome == .bad || (worst == .good && outcome != .good) { worst = outcome }
             }
         }
-        return any ? (bad ? .bad : .good) : nil
+        return worst
     }
 
     private func grade(_ note: Snippet.Note, chord i: Int) -> (grade: RunResult.Grade, timing: RunResult.Timing?)? {

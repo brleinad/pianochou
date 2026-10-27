@@ -250,6 +250,8 @@ final class PracticeSession {
         let source = phase == .result ? finished : follower
         switch source?.outcome(for: ref) {
         case .good: return .played
+        case .early: return .early
+        case .late: return .late
         case .bad: return .mistake
         case nil: return .upcoming
         }

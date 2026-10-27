@@ -3,8 +3,9 @@ import PianoCore
 import SwiftUI
 
 /// How a note has gone so far in a run. The current notes are found from `currentTime` instead.
+/// Early and late are the right note at the wrong time: drawn as played, with a tick before or after it.
 enum NoteMark {
-    case upcoming, played, mistake
+    case upcoming, played, early, late, mistake
 }
 
 /// Draws an `Engraving` scaled to fit the available width, with the playing overlays:
@@ -70,6 +71,15 @@ struct StaffView: View {
             let path = GlyphPaths.path(glyph)
                 .applying(CGAffineTransform(translationX: at.x * unit, y: at.y * unit).scaledBy(x: scale * unit, y: scale * unit))
             context.fill(path, with: .color(color))
+            if item.role == .notehead, let ref = item.ref, case let mark = mark(ref), mark == .early || mark == .late {
+                // A short tick in the fix colour: before the note when early, after it when late.
+                let width = path.boundingRect.width / unit
+                let x = mark == .early ? at.x - 1.1 : at.x + width + 0.3
+                var tick = Path()
+                tick.move(to: point(.init(x: x, y: at.y)))
+                tick.addLine(to: point(.init(x: x + 0.8, y: at.y)))
+                context.stroke(tick, with: .color(Theme.fix), style: StrokeStyle(lineWidth: 0.25 * unit, lineCap: .round))
+            }
 
         case let .line(from, to, thickness):
             var path = Path()
@@ -126,7 +136,7 @@ struct StaffView: View {
             guard let ref = item.ref else { return Theme.ink }
             switch mark(ref) {
             case .mistake: return Theme.fix
-            case .played: return isText ? Theme.playedText : Theme.played
+            case .played, .early, .late: return isText ? Theme.playedText : Theme.played
             case .upcoming:
                 if let currentTime, item.time == currentTime { return Theme.now }
                 return Theme.ink

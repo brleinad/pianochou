@@ -211,4 +211,19 @@ struct RunFollowerTests {
         #expect(follower.outcome(for: snippet.chords[3].notes[0].refs[0]) == nil)
         #expect(follower.progress == 3.0 / 8)
     }
+
+    /// The right note at the wrong time is marked early or late, not as a wrong note.
+    @Test func timingMarksAreNotWrongNotes() throws {
+        let (snippet, drill) = try scale()
+        for (midi, time) in zip(scaleMidis.prefix(4), [0, 1, 1.5, 4]) { drill.hear(midi, at: time) }
+        let ref = { (i: Int) in snippet.chords[i].notes[0].refs[0] }
+        #expect(drill.outcome(for: ref(1)) == .good)
+        #expect(drill.outcome(for: ref(2)) == .early)
+        #expect(drill.outcome(for: ref(3)) == .late)
+        #expect(drill.outcome(for: ref(3).eventRef) == .late)
+        // Following the player's tempo, timing doesn't count.
+        let (_, flow) = try scale(mode: .flow)
+        for (midi, time) in zip(scaleMidis.prefix(4), [0, 1, 1.5, 4]) { flow.hear(midi, at: time) }
+        #expect(flow.outcome(for: ref(2)) == .good)
+    }
 }
