@@ -1,8 +1,8 @@
 /// Follows one run through a snippet and grades it.
 ///
 /// Feed it every note the listener hears (expected or not) with its strike time, and call `tick`
-/// regularly. It starts on the first chord's first note, moves on as chords are completed (or when the
-/// next chord starts, leaving the rest missed), and ends on the last chord or on silence.
+/// regularly. It starts on the first chord's first note, moves on as chords are completed (or when one of
+/// the next few chords starts, leaving the rest missed), and ends on the last chord or on silence.
 /// Times are seconds on any clock, as long as `hear` and `tick` share it.
 public final class RunFollower {
     public enum Mode: Sendable {
@@ -119,9 +119,10 @@ public final class RunFollower {
         }
         if wants(midi, chord: current) {
             register(midi, chord: current, at: time)
-        } else if current + 1 < snippet.chords.count && wants(midi, chord: current + 1) {
-            close(current)
-            current += 1
+        } else if let ahead = (current + 1..<min(current + 1 + Tuning.catchUpChords, snippet.chords.count)).first(where: { wants(midi, chord: $0) }) {
+            // Moved on (or lost the place for a few notes): what's skipped is missed.
+            for i in current..<ahead { close(i) }
+            current = ahead
             register(midi, chord: current, at: time)
         } else if lateArrival(midi, at: time) {
             return

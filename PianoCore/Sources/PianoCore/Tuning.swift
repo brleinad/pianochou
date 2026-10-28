@@ -114,11 +114,16 @@ public enum Tuning {
     /// Drills only: a chord is early or late when it is off by more than this fraction of the gap
     /// since the previous chord, and by at least `timingToleranceSeconds`. Timing is judged from the
     /// previous chord actually played, so one hesitation doesn't make everything after it late.
-    public static let timingToleranceFraction: Double = 0.25
-    public static let timingToleranceSeconds: Double = 0.12
+    public static let timingToleranceFraction: Double = 0.4
+    public static let timingToleranceSeconds: Double = 0.2
 
-    /// A run ends when nothing has been played for this long after the next note was due.
-    public static let silenceGrace: Double = 1.5
+    /// A run ends when nothing has been played for this long after the next note was due. Long enough to
+    /// stop and find the next note; the restart button ends a run straight away.
+    public static let silenceGrace: Double = 4
+
+    /// A note belonging to one of this many chords after the current one moves the run on to it (the
+    /// skipped notes are missed), so losing your place for a moment doesn't wreck the rest of the run.
+    public static let catchUpChords = 3
 
     // MARK: Playing screen
 

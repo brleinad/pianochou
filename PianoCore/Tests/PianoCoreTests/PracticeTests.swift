@@ -87,6 +87,22 @@ struct RunFollowerTests {
         #expect(result.worst?.summary == "Right middle finger missed")
     }
 
+    /// Losing your place for a couple of notes: the follower catches up when you come back in further on.
+    @Test func catchesUpAfterSkippingNotes() throws {
+        let (_, follower) = try scale()
+        for (midi, time) in zip([60, 62, 69, 71, 72], [0.0, 1, 5, 6, 7]) { follower.hear(midi, at: time) } // E, F, G skipped
+        let result = try #require(follower.result)
+        #expect(result.notes.map(\.grade) == [.right, .right, .missed, .missed, .missed, .right, .right, .right])
+        #expect(result.good == 5)
+    }
+
+    @Test func aSmallSlipIsOnTime() throws {
+        // A third of a beat off at 60 bpm.
+        let (_, follower) = try scale()
+        for (midi, time) in zip(scaleMidis, [0, 1, 2.33, 3, 4, 5, 6, 7]) { follower.hear(midi, at: time) }
+        #expect(try #require(follower.result).good == 8)
+    }
+
     @Test func wrongNoteInsteadOfTheRightOne() throws {
         let (_, follower) = try scale()
         follower.hear(60, at: 0)
