@@ -38,8 +38,6 @@ struct MetronomeTests {
         #expect(Metronome.step(72, by: -1) == 67)
         #expect(Metronome.step(Tuning.tempoRange.lowerBound, by: -1) == Tuning.tempoRange.lowerBound)
         #expect(Metronome.step(Tuning.tempoRange.upperBound, by: 1) == Tuning.tempoRange.upperBound)
-        #expect(Metronome.slower(72) == 60)   // ~10% slower, down to a multiple of 5
-        #expect(Metronome.slower(32) == Tuning.tempoRange.lowerBound)
     }
 
     // MARK: Listening with the clicks

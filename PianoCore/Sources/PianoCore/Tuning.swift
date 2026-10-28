@@ -130,8 +130,6 @@ public enum Tuning {
     /// Practice tempos, in quarter notes per minute, and the step of the − / + buttons.
     public static let tempoRange: ClosedRange<Double> = 30...240
     public static let tempoStep: Double = 5
-    /// "Slower" after a run: about this much of the tempo, rounded down to a step.
-    public static let slowerFactor: Double = 0.9
 
     /// Peak level of the metronome samples (full scale = 1). The phone's volume buttons do the rest.
     public static let metronomeVolume: Double = 1.0

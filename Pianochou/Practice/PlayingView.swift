@@ -19,7 +19,7 @@ struct PlayingView: View {
                 header
                 if session.phase == .result, let result = session.lastResult {
                     BetweenRunsView(result: result, hasNext: session.hasNext,
-                                    slower: session.slower, next: session.next)
+                                    repeat: session.again, next: session.next)
                 } else {
                     staff
                 }
@@ -134,11 +134,11 @@ struct PlayingView: View {
     }
 }
 
-/// After a run: the score, one cell per note, the worst spot, and Slower / Next. Playing again starts the next run.
+/// After a run: the score, one cell per note, the worst spot, and Repeat / Next. Playing the first note again also starts the next run.
 struct BetweenRunsView: View {
     let result: RunResult
     let hasNext: Bool
-    let slower: () -> Void
+    let `repeat`: () -> Void
     let next: () -> Void
 
     var body: some View {
@@ -189,7 +189,7 @@ struct BetweenRunsView: View {
             }
             Spacer()
             HStack(spacing: 12) {
-                Button("Slower", action: slower)
+                Button("Repeat", action: `repeat`)
                     .buttonStyle(PillStyle(filled: true))
                 Button("Next", action: next)
                     .buttonStyle(PillStyle(filled: false))

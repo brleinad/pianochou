@@ -150,13 +150,6 @@ final class PracticeSession {
 
     // MARK: Between runs
 
-    /// About 10% slower, in whole tempo steps.
-    func slower() {
-        var next = settings
-        next.tempo = Metronome.slower(settings.tempo)
-        apply(next)
-    }
-
     /// A tempo step faster (+1) or slower (-1); starts over from the first note.
     func changeTempo(by steps: Int) {
         var next = settings
@@ -202,6 +195,7 @@ final class PracticeSession {
         apply(next)
     }
 
+    /// The same bars again, from the first note.
     func again() {
         apply(settings)
     }

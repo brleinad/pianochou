@@ -9,7 +9,7 @@ follows the next notes, keeping them `Tuning.followPosition` of the way across.
 - **Playing** (landscape, no taps): the first chord is highlighted; the run starts when you play it. The staff
   follows chord by chord: done notes fade, mistakes turn orange, the other hand is faded. A run ends on
   the last chord or after `Tuning.silenceGrace` of silence past when the next note was due.
-- **Between runs**: score (good/total), one cell per note, the worst spot, Slower (−10%) and Next (next bars).
+- **Between runs**: score (good/total), one cell per note, the worst spot, Repeat (same bars again) and Next (next bars).
   Playing the first chord again starts another run.
 
 Grading (`RunFollower`, drill mode): each note right / wrong / missed; each chord early / late when off by more
