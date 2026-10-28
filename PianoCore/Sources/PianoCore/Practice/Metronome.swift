@@ -68,6 +68,11 @@ public enum Metronome {
         clamp(tempo + Double(steps) * Tuning.tempoStep)
     }
 
+    /// About 10% slower, down to a whole step: what "Slower" after a run does.
+    public static func slower(_ tempo: Double) -> Double {
+        clamp(((tempo * Tuning.slowerFactor) / Tuning.tempoStep).rounded(.down) * Tuning.tempoStep)
+    }
+
     private static func clamp(_ tempo: Double) -> Double {
         min(max(tempo, Tuning.tempoRange.lowerBound), Tuning.tempoRange.upperBound)
     }

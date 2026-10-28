@@ -130,11 +130,22 @@ public enum Tuning {
     /// While playing, the staff scrolls to keep the next notes this fraction of the way across the screen.
     public static let followPosition: Double = 0.3
 
+    // MARK: Playback
+
+    /// Level of one note when playing the bars back (full scale = 1); chords are scaled down if they'd clip.
+    public static let playbackVolume: Double = 0.3
+    /// Seconds for a middle C to fade to about a third; an octave lower rings ~1.4× longer.
+    public static let playbackDecay: Double = 1.2
+    /// Seconds to fade to about a third once a note's written length is over.
+    public static let playbackRelease: Double = 0.06
+
     // MARK: Tempo and metronome
 
     /// Practice tempos, in quarter notes per minute, and the step of the − / + buttons.
     public static let tempoRange: ClosedRange<Double> = 30...240
     public static let tempoStep: Double = 5
+    /// "Slower" after a run: about this much of the tempo, rounded down to a step.
+    public static let slowerFactor: Double = 0.9
 
     /// Peak level of the metronome samples (full scale = 1). The phone's volume buttons do the rest.
     public static let metronomeVolume: Double = 1.0

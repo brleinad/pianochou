@@ -12,6 +12,8 @@ struct ScrollingStaffView: View {
     var maximumSpace: CGFloat = 14
     /// Keep the next notes in view, `Tuning.followPosition` of the way across.
     var follows = false
+    /// What to keep in view instead of the next notes (when following), e.g. the worst spot of a run.
+    var focus: Rational?
     /// How long to hold each note, drawn under it, filled up to the playhead as it moves.
     var holdBars: [HoldBar] = []
     var playhead: ((Date) -> Rational?)?
@@ -38,6 +40,7 @@ struct ScrollingStaffView: View {
             }
             .scrollPosition($position)
             .onChange(of: currentTime, initial: true) { follow(width: geometry.size.width, unit: unit) }
+            .onChange(of: focus) { follow(width: geometry.size.width, unit: unit) }
             // The screen turning to landscape changes the scale: find the notes again.
             .onChange(of: geometry.size) { follow(width: geometry.size.width, unit: unit) }
         }
@@ -74,7 +77,7 @@ struct ScrollingStaffView: View {
 
     private func follow(width: CGFloat, unit: CGFloat) {
         guard follows else { return }
-        let x = currentTime.flatMap(engraving.x(at:)) ?? 0
+        let x = (focus ?? currentTime).flatMap(engraving.x(at:)) ?? 0
         let target = max(0, x * unit - width * Tuning.followPosition)
         withAnimation(.easeInOut(duration: 0.3)) { position.scrollTo(x: target) }
     }

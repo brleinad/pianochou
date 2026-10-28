@@ -18,8 +18,7 @@ struct PlayingView: View {
             VStack(spacing: 0) {
                 header
                 if session.phase == .result, let result = session.lastResult {
-                    BetweenRunsView(result: result, hasNext: session.hasNext,
-                                    repeat: session.again, next: session.next)
+                    BetweenRunsView(session: session, result: result)
                 } else {
                     staff
                 }
@@ -97,21 +96,41 @@ struct PlayingView: View {
         let _ = session.revision // redraw marks on every heard note
         return VStack(spacing: 12) {
             ScrollingStaffView(engraving: session.engraving, currentTime: session.currentTime, mark: session.mark, follows: true,
-                               holdBars: session.holdBars, playhead: session.playhead(at:))
+                               focus: session.playbackChord, holdBars: session.holdBars, playhead: session.playhead(at:))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Theme.hairline)
-                    Capsule().fill(Theme.ink).frame(width: geometry.size.width * session.progress)
+            // Listen to the bars, the progress line, and start over part-way through.
+            HStack(spacing: 16) {
+                iconButton(session.isPlayingBack ? "stop.fill" : "play.fill", action: session.togglePlayback)
+                    .accessibilityLabel(session.isPlayingBack ? "Stop" : "Listen")
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Theme.hairline)
+                        Capsule().fill(Theme.ink).frame(width: geometry.size.width * session.progress)
+                    }
                 }
+                .frame(height: 2)
+                .accessibilityHidden(true)
+                iconButton("arrow.counterclockwise", action: session.again)
+                    .disabled(session.phase != .running)
+                    .opacity(session.phase == .running ? 1 : 0.3)
+                    .accessibilityLabel("Start over")
             }
-            .frame(height: 2)
-            .accessibilityHidden(true)
         }
         .padding(.horizontal, 56)
         .padding(.top, 4)
-        .padding(.bottom, 24)
+        .padding(.bottom, 12)
+    }
+
+    private func iconButton(_ symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 17))
+                .frame(width: 44, height: 44)
+                .overlay(Circle().stroke(Theme.hairline))
+                .contentShape(Circle())
+        }
+        .foregroundStyle(Theme.ink)
     }
 
     /// The small listening dot, or why we can't listen.
@@ -134,115 +153,63 @@ struct PlayingView: View {
     }
 }
 
-/// After a run: the score, one cell per note, the worst spot, and Repeat / Next. Playing the first note again also starts the next run.
+/// After a run: the score, the worst spot, the staff with every note marked, and Slower / Repeat / Next.
+/// Playing the first note again also starts the next run.
 struct BetweenRunsView: View {
+    let session: PracticeSession
     let result: RunResult
-    let hasNext: Bool
-    let `repeat`: () -> Void
-    let next: () -> Void
 
     var body: some View {
-        // Side by side when wide, one above the other when tall.
-        GeometryReader { geometry in
-            let layout = geometry.size.width > geometry.size.height
-                ? AnyLayout(HStackLayout(alignment: .top, spacing: 56)) : AnyLayout(VStackLayout(alignment: .leading, spacing: 32))
-            layout {
-                score
-                details
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 28) {
+                Text("\(result.good)/\(result.total)")
+                    .font(Theme.text(56).weight(.light))
+                    .kerning(-2)
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .accessibilityLabel("\(result.good) of \(result.total) notes right")
+                VStack(alignment: .leading, spacing: 2) {
+                    if let worst = result.worst {
+                        Text("Bar \(worst.measureNumber)")
+                            .font(Theme.text(15).weight(.semibold))
+                            .foregroundStyle(Theme.fix)
+                        Text(worst.summary)
+                            .font(Theme.text(22).weight(.medium))
+                            .foregroundStyle(Theme.ink)
+                    } else {
+                        Text("Clean")
+                            .font(Theme.text(22).weight(.medium))
+                            .foregroundStyle(Theme.now)
+                    }
+                }
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
+            }
+
+            ScrollingStaffView(engraving: session.engraving, mark: session.mark, follows: true, focus: worstTime)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            HStack(spacing: 12) {
+                Button("Slower", action: session.slower)
+                    .buttonStyle(PillStyle(filled: false))
+                    .disabled(!session.canGoSlower)
+                    .opacity(session.canGoSlower ? 1 : 0.4)
+                Button("Repeat", action: session.again)
+                    .buttonStyle(PillStyle(filled: true))
+                Button("Next", action: session.next)
+                    .buttonStyle(PillStyle(filled: false))
+                    .disabled(!session.hasNext)
+                    .opacity(session.hasNext ? 1 : 0.4)
             }
         }
         .padding(.horizontal, 56)
         .padding(.top, 8)
-        .padding(.bottom, 36)
+        .padding(.bottom, 16)
     }
 
-    private var score: some View {
-        VStack(alignment: .leading) {
-            Text("\(result.good)/\(result.total)")
-                .font(Theme.text(96).weight(.light))
-                .kerning(-3)
-                .foregroundStyle(Theme.ink)
-                .padding(.top, 24)
-                .minimumScaleFactor(0.5)
-                .lineLimit(1)
-            Spacer()
-            NoteStrip(cells: result.strip)
-                .accessibilityElement()
-                .accessibilityLabel("\(result.good) of \(result.total) notes right")
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var details: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if let worst = result.worst {
-                Text("Bar \(worst.measureNumber)")
-                    .font(Theme.text(15).weight(.semibold))
-                    .foregroundStyle(Theme.fix)
-                Text(worst.summary)
-                    .font(Theme.text(28).weight(.medium))
-                    .foregroundStyle(Theme.ink)
-            } else {
-                Text("Clean")
-                    .font(Theme.text(28).weight(.medium))
-                    .foregroundStyle(Theme.now)
-            }
-            Spacer()
-            HStack(spacing: 12) {
-                Button("Repeat", action: `repeat`)
-                    .buttonStyle(PillStyle(filled: true))
-                Button("Next", action: next)
-                    .buttonStyle(PillStyle(filled: false))
-                    .disabled(!hasNext)
-                    .opacity(hasNext ? 1 : 0.4)
-            }
-        }
-        .padding(.top, 24)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-/// One cell per note, ink when it went well, orange when not. A few notes stretch across one row; many
-/// (a long run) shrink into rows of small cells that fit a fixed block.
-struct NoteStrip: View {
-    let cells: [Bool]
-    private static let rowHeight: CGFloat = 22
-    private static let blockHeight: CGFloat = 96
-
-    var body: some View {
-        GeometryReader { geometry in
-            Canvas { context, size in
-                let (columns, pitch, cell) = Self.grid(count: cells.count, in: size)
-                for (i, good) in cells.enumerated() {
-                    let rect = CGRect(x: CGFloat(i % columns) * pitch.width, y: CGFloat(i / columns) * pitch.height,
-                                      width: cell.width, height: cell.height)
-                    context.fill(Path(roundedRect: rect, cornerRadius: min(3, cell.width / 3)), with: .color(good ? Theme.ink : Theme.fix))
-                }
-            }
-            .frame(height: Self.fitsOneRow(cells.count, width: geometry.size.width) ? Self.rowHeight : Self.blockHeight)
-        }
-        .frame(height: Self.blockHeight, alignment: .bottom)
-    }
-
-    static func fitsOneRow(_ count: Int, width: CGFloat) -> Bool {
-        (width - 3 * CGFloat(count - 1)) / CGFloat(max(1, count)) >= 8
-    }
-
-    /// Columns, the step from one cell to the next, and the cell size.
-    static func grid(count: Int, in size: CGSize) -> (Int, CGSize, CGSize) {
-        let count = max(1, count)
-        if fitsOneRow(count, width: size.width) {
-            let width = (size.width - 3 * CGFloat(count - 1)) / CGFloat(count)
-            return (count, CGSize(width: width + 3, height: 0), CGSize(width: width, height: rowHeight))
-        }
-        // The largest square step at which every cell fits the block.
-        var step = rowHeight
-        while step > 2 {
-            let columns = max(1, Int(size.width / step))
-            if CGFloat((count + columns - 1) / columns) * step <= size.height { break }
-            step -= 0.5
-        }
-        let cell = max(1, step * 0.75)
-        return (max(1, Int(size.width / step)), CGSize(width: step, height: step), CGSize(width: cell, height: cell))
+    /// Where the worst spot is, to scroll it into view.
+    private var worstTime: Rational? {
+        result.worst.map { session.snippet.chords[$0.chord].time }
     }
 }
