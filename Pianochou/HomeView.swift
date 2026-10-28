@@ -7,6 +7,8 @@ struct HomeView: View {
     @State private var path: [ScoreEntry] = []
     @State private var importing = false
     @State private var importError: String?
+    @State private var renaming: ScoreEntry?
+    @State private var newTitle = ""
     /// Launch with `-listen-test` or `-staff-gallery` to open those screens directly (for simulator checks).
     @State private var showListenTest = ProcessInfo.processInfo.arguments.contains("-listen-test")
     @State private var showStaffGallery = ProcessInfo.processInfo.arguments.contains("-staff-gallery")
@@ -38,6 +40,12 @@ struct HomeView: View {
                             }
                             .listRowBackground(Theme.paper)
                             .listRowSeparatorTint(Theme.hairline)
+                            .swipeActions(edge: .leading) {
+                                Button("Rename") { startRenaming(entry) }.tint(Theme.now)
+                            }
+                            .contextMenu {
+                                Button("Rename", systemImage: "pencil") { startRenaming(entry) }
+                            }
                         }
                         .onDelete { offsets in offsets.map { library.entries[$0] }.forEach(library.delete) }
                     }
@@ -78,6 +86,11 @@ struct HomeView: View {
                     path = [entry]
                 }
             }
+            .alert("Rename", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
+                TextField("Title", text: $newTitle)
+                Button("Cancel", role: .cancel) {}
+                Button("Save") { if let renaming { library.rename(renaming, to: newTitle) } }
+            }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.musicXML, .compressedMusicXML, .xml]) { result in
                 importError = nil
                 do {
@@ -88,6 +101,13 @@ struct HomeView: View {
                 }
             }
         }
+    }
+}
+
+extension HomeView {
+    private func startRenaming(_ entry: ScoreEntry) {
+        newTitle = entry.title
+        renaming = entry
     }
 }
 

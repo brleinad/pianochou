@@ -33,7 +33,7 @@ final class ScoreLibrary {
         let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.creationDateKey])) ?? []
         entries = files
             .filter { ["musicxml", "xml", "mxl"].contains($0.pathExtension.lowercased()) }
-            .compactMap { url in score(at: url).map { ScoreEntry(url: url, title: Self.title(of: $0, url: url)) } }
+            .compactMap { url in score(at: url).map { ScoreEntry(url: url, title: title(of: $0, url: url)) } }
             .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
     }
 
@@ -54,13 +54,25 @@ final class ScoreLibrary {
         try data.write(to: destination)
         cache[destination.lastPathComponent] = score
         reload()
-        return ScoreEntry(url: destination, title: Self.title(of: score, url: destination))
+        return ScoreEntry(url: destination, title: title(of: score, url: destination))
     }
 
     func delete(_ entry: ScoreEntry) {
         try? FileManager.default.removeItem(at: entry.url)
         cache[entry.id] = nil
         UserDefaults.standard.removeObject(forKey: Self.settingsKey(entry))
+        UserDefaults.standard.removeObject(forKey: Self.titleKey(entry.id))
+        reload()
+    }
+
+    /// Gives a score the user's own name; an empty name goes back to the one in the file.
+    func rename(_ entry: ScoreEntry, to title: String) {
+        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if title.isEmpty {
+            UserDefaults.standard.removeObject(forKey: Self.titleKey(entry.id))
+        } else {
+            UserDefaults.standard.set(title, forKey: Self.titleKey(entry.id))
+        }
         reload()
     }
 
@@ -73,7 +85,9 @@ final class ScoreLibrary {
         return score
     }
 
-    private static func title(of score: Score, url: URL) -> String {
+    /// The user's name for it, else the score's title, else the file name.
+    private func title(of score: Score, url: URL) -> String {
+        if let custom = UserDefaults.standard.string(forKey: Self.titleKey(url.lastPathComponent)) { return custom }
         if let title = score.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty { return title }
         return url.deletingPathExtension().lastPathComponent
     }
@@ -90,6 +104,7 @@ final class ScoreLibrary {
     }
 
     private static func settingsKey(_ entry: ScoreEntry) -> String { "settings.\(entry.id)" }
+    private static func titleKey(_ id: String) -> String { "title.\(id)" }
 }
 
 /// What to practice: which bars (indices into the part's measures), which hands, how fast.
@@ -111,15 +126,21 @@ struct PracticeSettings: Codable, Hashable {
         // Start on the first full bar; a pickup goes with it.
         let last = min(measures.count - 1, measures.first?.isPickup == true ? 2 : 1)
         var tempo = 60.0
-        for measure in measures {
-            if let marked = measure.directions.lazy.compactMap({ direction -> Double? in
-                if case let .tempo(bpm) = direction.kind { return bpm } else { return nil }
-            }).first {
-                tempo = max(40, (marked * 0.6 / 5).rounded() * 5)
-                break
-            }
-        }
+        if let marked = songTempo(score, at: 0) { tempo = max(40, (marked * 0.6 / 5).rounded() * 5) }
         return PracticeSettings(firstBar: 0, lastBar: last, hands: Hands.both.rawValue, tempo: tempo)
+    }
+
+    /// The tempo the score marks for bar `index`: the last marking at or before it, else the song's first.
+    /// Nil when the score marks none.
+    static func songTempo(_ score: Score, at index: Int) -> Double? {
+        func marking(_ measure: Measure) -> Double? {
+            measure.directions.lazy.compactMap { direction -> Double? in
+                if case let .tempo(bpm) = direction.kind { return bpm } else { return nil }
+            }.first
+        }
+        let measures = score.parts[0].measures
+        let marked = measures[...index].reversed().lazy.compactMap(marking).first ?? measures.lazy.compactMap(marking).first
+        return marked.map { min(max($0, Tuning.tempoRange.lowerBound), Tuning.tempoRange.upperBound) }
     }
 }
 

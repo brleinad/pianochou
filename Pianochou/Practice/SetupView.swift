@@ -75,10 +75,19 @@ struct SetupView: View {
                         }
                         .pickerStyle(.segmented)
                     }
-                    NumberStepper(label: "Tempo", value: "\(Int(current.tempo))",
+                    NumberStepper(label: "Tempo", value: "\(Int(current.tempo.rounded()))",
                                   canDecrease: current.tempo > Tuning.tempoRange.lowerBound,
                                   canIncrease: current.tempo < Tuning.tempoRange.upperBound) { step in
                         update { s in s.tempo = Metronome.step(s.tempo, by: step) }
+                    } accessory: {
+                        // Back to the tempo the score marks for these bars.
+                        if let song = PracticeSettings.songTempo(score, at: current.firstBar) {
+                            Button("Song \(Int(song.rounded()))") { update { s in s.tempo = song } }
+                                .font(Theme.text(15))
+                                .foregroundStyle(current.tempo == song ? Theme.muted : Theme.now)
+                                .disabled(current.tempo == song)
+                                .frame(minHeight: 44)
+                        }
                     }
                 }
                 .padding(24)
@@ -98,19 +107,23 @@ struct SetupView: View {
     }
 }
 
-/// A label, a big number, and − / + buttons.
-struct NumberStepper: View {
+/// A label (with an optional link under it), a big number, and − / + buttons.
+struct NumberStepper<Accessory: View>: View {
     let label: String
     let value: String
     var canDecrease = true
     var canIncrease = true
     let step: (Int) -> Void
+    @ViewBuilder var accessory: Accessory
 
     var body: some View {
         HStack {
-            Text(label)
-                .font(Theme.text(17))
-                .foregroundStyle(Theme.muted)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(label)
+                    .font(Theme.text(17))
+                    .foregroundStyle(Theme.muted)
+                accessory
+            }
             Spacer()
             round("minus", enabled: canDecrease) { step(-1) }
                 .accessibilityLabel("Less")
@@ -137,5 +150,11 @@ struct NumberStepper: View {
         .buttonRepeatBehavior(.enabled)
         .foregroundStyle(enabled ? Theme.ink : Theme.hairline)
         .disabled(!enabled)
+    }
+}
+
+extension NumberStepper where Accessory == EmptyView {
+    init(label: String, value: String, canDecrease: Bool = true, canIncrease: Bool = true, step: @escaping (Int) -> Void) {
+        self.init(label: label, value: value, canDecrease: canDecrease, canIncrease: canIncrease, step: step) { EmptyView() }
     }
 }
