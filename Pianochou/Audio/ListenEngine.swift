@@ -54,6 +54,7 @@ final class ListenEngine {
     private var engine: AVAudioEngine?
     private var processor: ListenProcessor?
     private var player: AVAudioPlayerNode?
+    private var music: AVAudioPlayerNode?
     private var clickFormat: AVAudioFormat?
 
     private let clickSound = try? Metronome.Sound.bundled()
@@ -79,6 +80,28 @@ final class ListenEngine {
         processor.setClicks(firstArrival: start &+ UInt64(HostClock.ticks(seconds: latency)),
                             period: Metronome.beatSeconds(clicks.time, tempo: clicks.tempo))
     }
+
+    /// Plays mono `samples` (at `outputSampleRate`) through the speaker. Returns when the first sample
+    /// will be heard, or nil when not running.
+    func play(_ samples: [Float]) -> Date? {
+        guard let music, let format = clickFormat, !samples.isEmpty,
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count)),
+              let channel = buffer.floatChannelData?[0] else { return nil }
+        buffer.frameLength = AVAudioFrameCount(samples.count)
+        samples.withUnsafeBufferPointer { channel.update(from: $0.baseAddress!, count: samples.count) }
+        music.stop()
+        music.scheduleBuffer(buffer, at: nil)
+        let lead = 0.1
+        music.play(at: AVAudioTime(hostTime: HostClock.now &+ UInt64(HostClock.ticks(seconds: lead))))
+        return Date().addingTimeInterval(lead + AVAudioSession.sharedInstance().outputLatency)
+    }
+
+    func stopPlaying() {
+        music?.stop()
+    }
+
+    /// The rate `play` expects.
+    var outputSampleRate: Double? { clickFormat?.sampleRate }
 
     func start() async {
         guard state != .running else { return }
@@ -114,6 +137,10 @@ final class ListenEngine {
             engine.attach(player)
             let clickFormat = AVAudioFormat(standardFormatWithSampleRate: engine.mainMixerNode.outputFormat(forBus: 0).sampleRate, channels: 1)
             engine.connect(player, to: engine.mainMixerNode, format: clickFormat)
+            // Playing the bars back, the same way.
+            let music = AVAudioPlayerNode()
+            engine.attach(music)
+            engine.connect(music, to: engine.mainMixerNode, format: clickFormat)
             engine.prepare()
             try engine.start()
 
@@ -122,6 +149,7 @@ final class ListenEngine {
             self.engine = engine
             self.processor = processor
             self.player = player
+            self.music = music
             self.clickFormat = clickFormat
             sampleRate = format.sampleRate
             ioBufferDuration = session.ioBufferDuration
@@ -134,11 +162,13 @@ final class ListenEngine {
 
     func stop() {
         player?.stop()
+        music?.stop()
         processor?.stop()
         engine?.stop()
         processor = nil
         engine = nil
         player = nil
+        music = nil
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         if state == .running { state = .idle }
     }
